@@ -13,7 +13,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/vehicles")) return "Vehicle Management";
   if (pathname.startsWith("/dashboard/bookings")) return "Booking Calendar";
   if (pathname.startsWith("/dashboard/ai-vehicle-allocation")) return "AI Vehicle Allocation";
-  return "AgencyLink Dashboard";
+  return "NomadX_Agency Dashboard";
 }
 
 export default function DashboardLayout({

@@ -46,7 +46,7 @@ export function AppSidebar() {
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <Link href="/dashboard" className="flex items-center gap-2">
           <Briefcase className="h-8 w-8 text-primary" />
-          {!isCollapsed && <span className="text-xl font-semibold text-sidebar-foreground">AgencyLink</span>}
+          {!isCollapsed && <span className="text-xl font-semibold text-sidebar-foreground">NomadX_Agency</span>}
         </Link>
       </SidebarHeader>
       <SidebarContent className="p-2">

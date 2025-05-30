@@ -31,7 +31,7 @@ export default function LoginPage() {
   return (
     <Card className="w-full">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl">Login to AgencyLink</CardTitle>
+        <CardTitle className="text-2xl">Login to NomadX_Agency</CardTitle>
         <CardDescription>
           Enter your email and password to access your agency dashboard.
         </CardDescription>

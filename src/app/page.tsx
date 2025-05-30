@@ -10,7 +10,7 @@ export default function LandingPage() {
       <header className="px-4 lg:px-6 h-16 flex items-center border-b">
         <Link href="#" className="flex items-center justify-center" prefetch={false}>
           <Briefcase className="h-6 w-6 text-primary" />
-          <span className="ml-2 text-xl font-bold">AgencyLink</span>
+          <span className="ml-2 text-xl font-bold">NomadX_Agency</span>
         </Link>
         <nav className="ml-auto flex gap-4 sm:gap-6">
           <Link
@@ -32,7 +32,7 @@ export default function LandingPage() {
               <div className="flex flex-col justify-center space-y-4">
                 <div className="space-y-2">
                   <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
-                    Streamline Your Travel Agency Operations with <span className="text-primary">AgencyLink</span>
+                    Streamline Your Travel Agency Operations with <span className="text-primary">NomadX_Agency</span>
                   </h1>
                   <p className="max-w-[600px] text-muted-foreground md:text-xl">
                     Manage your employees, vehicles, and bookings all in one place. Get AI-powered vehicle suggestions and stay organized with our intuitive platform.
@@ -54,7 +54,7 @@ export default function LandingPage() {
               </div>
               <Image
                 src="https://placehold.co/600x400.png"
-                alt="AgencyLink Dashboard Mockup"
+                alt="NomadX_Agency Dashboard Mockup"
                 width={600}
                 height={400}
                 className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last"
@@ -70,7 +70,7 @@ export default function LandingPage() {
                 <div className="inline-block rounded-lg bg-secondary px-3 py-1 text-sm">Key Features</div>
                 <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Everything You Need to Succeed</h2>
                 <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  AgencyLink provides a comprehensive suite of tools to help your travel agency thrive.
+                  NomadX_Agency provides a comprehensive suite of tools to help your travel agency thrive.
                 </p>
               </div>
             </div>
@@ -107,7 +107,7 @@ export default function LandingPage() {
         </section>
       </main>
       <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
-        <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} AgencyLink. All rights reserved.</p>
+        <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} NomadX_Agency. All rights reserved.</p>
         <nav className="sm:ml-auto flex gap-4 sm:gap-6">
           <Link href="#" className="text-xs hover:underline underline-offset-4" prefetch={false}>
             Terms of Service

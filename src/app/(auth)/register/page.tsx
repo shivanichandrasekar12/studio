@@ -32,9 +32,9 @@ export default function RegisterPage() {
   return (
     <Card className="w-full">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl">Register Your Agency</CardTitle>
+        <CardTitle className="text-2xl">Register for NomadX_Agency</CardTitle>
         <CardDescription>
-          Create an account to start managing your travel agency with AgencyLink.
+          Create an account to start managing your travel agency with NomadX_Agency.
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>

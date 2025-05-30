@@ -11,7 +11,7 @@ export default function AuthLayout({
       <div className="absolute top-8 left-8">
         <Link href="/" className="flex items-center text-2xl font-bold text-primary">
           <Briefcase className="mr-2 h-8 w-8" />
-          AgencyLink
+          NomadX_Agency
         </Link>
       </div>
       <div className="w-full max-w-md">
