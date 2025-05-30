@@ -67,6 +67,7 @@ export type NotificationItem = {
   link?: string;
   userId?: string; // For user-specific notifications
   role?: UserRole; // For role-specific notifications
+  type?: 'booking' | 'booking_update' | 'booking_completed' | 'system' | 'reminder' | 'promotion' | string;
 };
 
 export type Review = {
