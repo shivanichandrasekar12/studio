@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DashboardCardItem } from "@/types";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
@@ -9,7 +10,7 @@ export function StatCard({ title, value, icon: Icon, trend, actionLabel, actionH
   const isNegativeTrend = trend && trend.startsWith('-');
 
   return (
-    <Card>
+    <Card className="card-interactive hover:shadow-lg hover:-translate-y-1 transform">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <Icon className="h-5 w-5 text-muted-foreground" />
@@ -24,7 +25,7 @@ export function StatCard({ title, value, icon: Icon, trend, actionLabel, actionH
           </p>
         )}
         {actionLabel && actionHref && (
-          <Button variant="link" asChild className="px-0 pt-2 h-auto text-sm">
+          <Button variant="link" asChild className="px-0 pt-2 h-auto text-sm hover:text-primary/80">
             <Link href={actionHref}>{actionLabel}</Link>
           </Button>
         )}

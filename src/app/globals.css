@@ -115,4 +115,11 @@ body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+  /* Add smooth transitions to interactive elements */
+  button,
+  a,
+  [role="button"],
+  .card-interactive { /* You can add this class to cards you want to have hover effects */
+    @apply transition-all duration-300 ease-in-out;
+  }
 }
