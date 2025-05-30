@@ -1,3 +1,4 @@
+
 "use client"; // Required for SidebarProvider and its hooks
 
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -13,6 +14,9 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/vehicles")) return "Vehicle Management";
   if (pathname.startsWith("/dashboard/bookings")) return "Booking Calendar";
   if (pathname.startsWith("/dashboard/ai-vehicle-allocation")) return "AI Vehicle Allocation";
+  if (pathname.startsWith("/dashboard/notifications")) return "Notifications";
+  if (pathname.startsWith("/dashboard/profile")) return "User Profile";
+  if (pathname.startsWith("/dashboard/settings")) return "Settings";
   return "NomadX_Agency Dashboard";
 }
 

@@ -12,6 +12,7 @@ import {
   Wand2,
   LogOut,
   Settings,
+  Bell,
 } from "lucide-react";
 import {
   Sidebar,
@@ -33,6 +34,7 @@ const navItems: NavItem[] = [
   { title: "Employees", href: "/dashboard/employees", icon: Users },
   { title: "Vehicles", href: "/dashboard/vehicles", icon: Truck },
   { title: "Bookings", href: "/dashboard/bookings", icon: CalendarDays },
+  { title: "Notifications", href: "/dashboard/notifications", icon: Bell },
   { title: "AI Allocation", href: "/dashboard/ai-vehicle-allocation", icon: Wand2 },
 ];
 
@@ -53,10 +55,6 @@ export function AppSidebar() {
   };
 
   const handleSettingsClick = () => {
-    toast({
-      title: "Settings",
-      description: "Settings page is a placeholder.",
-    });
     router.push("/dashboard/settings");
   };
 

@@ -26,9 +26,9 @@ interface AppHeaderProps {
 }
 
 const initialNotifications: NotificationItem[] = [
-  { id: "1", title: "New Booking Request", description: "John Doe - Toyota Camry - Tomorrow 10 AM", timestamp: new Date(Date.now() - 3600000 * 1), read: false }, // 1 hour ago
-  { id: "2", title: "Vehicle Maintenance Due", description: "Sedan XYZ-123 - Oil Change", timestamp: new Date(Date.now() - 3600000 * 5), read: false }, // 5 hours ago
-  { id: "3", title: "Employee Shift Reminder", description: "Jane Smith - Starts in 1 hour", timestamp: new Date(), read: true },
+  { id: "1", title: "New Booking Request", description: "John Doe - Toyota Camry - Tomorrow 10 AM", timestamp: new Date(Date.now() - 3600000 * 1), read: false, link: "/dashboard/bookings" },
+  { id: "2", title: "Vehicle Maintenance Due", description: "Sedan XYZ-123 - Oil Change", timestamp: new Date(Date.now() - 3600000 * 5), read: false, link: "/dashboard/vehicles" },
+  { id: "3", title: "Employee Shift Reminder", description: "Jane Smith - Starts in 1 hour", timestamp: new Date(Date.now() - 3600000 * 0.5), read: true },
 ];
 
 
@@ -56,28 +56,23 @@ export function AppHeader({ title }: AppHeaderProps) {
     router.push("/dashboard/profile");
   };
 
-  const handleNotificationClick = (notificationId: string) => {
+  const handleNotificationClick = (notification: NotificationItem) => {
     setNotifications(prevNotifications =>
       prevNotifications.map(n =>
-        n.id === notificationId ? { ...n, read: true } : n
+        n.id === notification.id ? { ...n, read: true } : n
       )
     );
-    const notification = notifications.find(n => n.id === notificationId);
     toast({
-      title: `Notification: ${notification?.title || 'Notification'}`,
-      description: notification?.link ? `Navigating...` : "Marked as read.",
+      title: `Notification: ${notification.title}`,
+      description: notification.link ? `Navigating to details...` : "Marked as read.",
     });
-    if (notification?.link) {
+    if (notification.link) {
       router.push(notification.link);
     }
   };
 
   const handleViewAllNotifications = () => {
-    toast({
-      title: "View All Notifications",
-      description: "This feature is not yet implemented.",
-    });
-    // router.push("/dashboard/notifications"); // Future implementation
+    router.push("/dashboard/notifications");
   };
 
 
@@ -123,11 +118,11 @@ export function AppHeader({ title }: AppHeaderProps) {
             <DropdownMenuLabel>Notifications</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {notifications.length > 0 ? (
-              notifications.map(notification => (
+              notifications.slice(0, 3).map(notification => ( // Show only first 3 in dropdown
                 <DropdownMenuItem
                   key={notification.id}
                   className={`flex flex-col items-start cursor-pointer ${notification.read ? 'opacity-60' : ''}`}
-                  onClick={() => handleNotificationClick(notification.id)}
+                  onClick={() => handleNotificationClick(notification)}
                 >
                   <p className={`font-medium ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>{notification.title}</p>
                   <p className="text-xs text-muted-foreground">{notification.description}</p>
