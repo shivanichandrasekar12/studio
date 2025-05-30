@@ -1,2 +1,0 @@
-// This file is intentionally left empty (no default export) to resolve routing conflicts.
-// The actual page has been moved to a role-specific directory.
