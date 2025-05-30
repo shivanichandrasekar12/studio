@@ -12,7 +12,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/customer/dashboard/my-bookings")) return "My Bookings";
   if (pathname.startsWith("/customer/dashboard/book-new")) return "Book New Ride";
   if (pathname.startsWith("/customer/dashboard/notifications")) return "My Notifications";
-  if (pathname.startsWith("/customer/dashboard/reviews")) return "My Reviews";
+  if (pathname.startsWith("/customer/dashboard/my-reviews")) return "My Reviews";
   if (pathname.startsWith("/customer/dashboard/profile")) return "My Profile";
   if (pathname.startsWith("/customer/dashboard/settings")) return "Settings";
   return "NomadX Customer Portal";
