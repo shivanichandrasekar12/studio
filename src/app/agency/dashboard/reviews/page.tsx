@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Star, PlusCircle, MessageSquareText, Loader2, AlertCircle, Edit, Trash2 } from "lucide-react"; 
-import { useState, type FormEvent, useEffect } from "react";
+import { useState, type FormEvent } from "react";
 import type { Review } from "@/types";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -48,7 +48,7 @@ export default function AgencyReviewsPage() {
   const [formRating, setFormRating] = useState(0);
   const [formReviewTitle, setFormReviewTitle] = useState("");
   const [formComment, setFormComment] = useState("");
-  const [formAvatarUrl, setFormAvatarUrl] = useState(""); // Added for consistency with type
+  const [formAvatarUrl, setFormAvatarUrl] = useState("");
 
   const { mutate: addReviewMutation, isPending: isAddingReview } = useMutation({
     mutationFn: addReview,
@@ -127,8 +127,8 @@ export default function AgencyReviewsPage() {
       title: formReviewTitle,
       comment: formComment,
       avatarUrl: formAvatarUrl || `https://placehold.co/40x40.png?text=${formCustomerName ? formCustomerName.substring(0,1).toUpperCase() : 'C'}U`,
-      reviewType: "customer" as Review["reviewType"], // Explicitly customer review
-      // bookingId could be added if there's a way to select it
+      reviewType: "customer" as Review["reviewType"], 
+      createdAt: new Date(), // Firestore service will convert this to Timestamp
     };
     
     if (editingReview) {
@@ -294,7 +294,7 @@ export default function AgencyReviewsPage() {
                         <p className="mt-1 text-sm text-muted-foreground">{review.comment}</p>
                         <div className="mt-2 flex items-center justify-between">
                           <p className="text-xs text-muted-foreground">
-                            {formatDistanceToNow(review.createdAt, { addSuffix: true })}
+                            {review.createdAt ? formatDistanceToNow(new Date(review.createdAt), { addSuffix: true }) : 'N/A'}
                           </p>
                           <div className="flex items-center gap-2">
                             <Badge variant={review.reviewType === 'customer' ? 'secondary' : 'outline'}>
@@ -329,3 +329,5 @@ export default function AgencyReviewsPage() {
     </>
   );
 }
+
+    

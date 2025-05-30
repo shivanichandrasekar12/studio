@@ -2,10 +2,9 @@
 "use client";
 
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, Mail, BellRing, ListChecks, Loader2, AlertCircle } from "lucide-react";
-import { useState, useEffect } from "react";
 import type { NotificationItem } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -32,7 +31,7 @@ export default function AgencyNotificationsPage() {
     mutationFn: markAgencyNotificationAsRead,
     onSuccess: (data, notificationId) => {
       queryClient.invalidateQueries({ queryKey: ["agencyNotifications"] });
-      queryClient.invalidateQueries({ queryKey: ["headerNotifications"] }); // For header count
+      queryClient.invalidateQueries({ queryKey: ["headerNotifications", 'agency'] }); 
       toast({ title: "Notification Marked as Read"});
     },
     onError: (error) => {
@@ -44,7 +43,7 @@ export default function AgencyNotificationsPage() {
     mutationFn: markAllAgencyNotificationsAsRead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agencyNotifications"] });
-      queryClient.invalidateQueries({ queryKey: ["headerNotifications"] }); // For header count
+      queryClient.invalidateQueries({ queryKey: ["headerNotifications", 'agency'] }); 
       toast({ title: "All Notifications Marked as Read" });
     },
     onError: (error) => {
@@ -141,7 +140,7 @@ export default function AgencyNotificationsPage() {
                           {notification.title}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {notification.timestamp ? formatDistanceToNow(notification.timestamp, { addSuffix: true }) : 'N/A'}
+                          {notification.timestamp ? formatDistanceToNow(new Date(notification.timestamp), { addSuffix: true }) : 'N/A'}
                         </p>
                       </div>
                       <p className={cn("text-sm", notification.read ? "text-muted-foreground" : "text-foreground/90")}>
@@ -172,3 +171,5 @@ export default function AgencyNotificationsPage() {
     </>
   );
 }
+
+    

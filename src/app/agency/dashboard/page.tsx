@@ -1,33 +1,69 @@
+
+"use client";
+
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { DashboardCardItem, Booking } from "@/types";
-import { CalendarCheck, Users, Truck, DollarSign, PlusCircle, ExternalLink, Wand2 } from "lucide-react";
+import { CalendarCheck, Users, Truck, DollarSign, PlusCircle, ExternalLink, Wand2, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
+import { useQuery } from "@tanstack/react-query";
+import { getBookings } from "@/lib/services/bookingsService";
+import { getVehicles } from "@/lib/services/vehiclesService";
+import { getEmployees } from "@/lib/services/employeesService";
+import { format } from "date-fns";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-const summaryStats: DashboardCardItem[] = [
-  { title: "Total Bookings", value: "1,234", icon: CalendarCheck, trend: "+12% from last month", actionLabel: "View Bookings", actionHref: "/agency/dashboard/bookings" },
-  { title: "Active Employees", value: "25", icon: Users, trend: "+2 new hires", actionLabel: "Manage Employees", actionHref: "/agency/dashboard/employees" },
-  { title: "Available Vehicles", value: "18", icon: Truck, trend: "3 in maintenance", actionLabel: "Manage Vehicles", actionHref: "/agency/dashboard/vehicles" },
-  { title: "Monthly Revenue", value: "$15,670", icon: DollarSign, trend: "+8.5% from last month" },
-];
-
-const mockRecentBookings: Booking[] = [
-  { id: "1", customerName: "Alice Wonderland", pickupDate: new Date(Date.now() + 86400000), dropoffDate: new Date(Date.now() + 2*86400000), status: "Confirmed", vehicleType: "Sedan", customerEmail: "alice@example.com", customerPhone:"123-456-7890", pickupLocation:"City Center", dropoffLocation:"Airport"},
-  { id: "2", customerName: "Bob The Builder", pickupDate: new Date(Date.now() + 2*86400000), dropoffDate: new Date(Date.now() + 3*86400000), status: "Pending", vehicleType: "SUV", customerEmail: "bob@example.com", customerPhone:"123-456-7890", pickupLocation:"Hotel ABC", dropoffLocation:"Conference Hall" },
-  { id: "3", customerName: "Charlie Brown", pickupDate: new Date(Date.now() + 3*86400000), dropoffDate: new Date(Date.now() + 4*86400000), status: "Confirmed", vehicleType: "Van", customerEmail: "charlie@example.com", customerPhone:"123-456-7890", pickupLocation:"Residential Area", dropoffLocation:"Theme Park" },
-];
 
 export default function AgencyDashboardOverviewPage() {
+  const { data: bookings = [], isLoading: isLoadingBookings, error: bookingsError } = useQuery<Booking[], Error>({
+    queryKey: ["bookings"],
+    queryFn: getBookings,
+  });
+
+  const { data: vehicles = [], isLoading: isLoadingVehicles } = useQuery<Vehicle[], Error>({
+    queryKey: ["vehicles"],
+    queryFn: getVehicles,
+  });
+
+  const { data: employees = [], isLoading: isLoadingEmployees } = useQuery<Employee[], Error>({
+    queryKey: ["employees"],
+    queryFn: getEmployees,
+  });
+
+  const upcomingBookings = bookings
+    .filter(b => new Date(b.pickupDate) >= new Date() && (b.status === "Pending" || b.status === "Confirmed"))
+    .sort((a, b) => new Date(a.pickupDate).getTime() - new Date(b.pickupDate).getTime())
+    .slice(0, 3);
+
+  const summaryStats: DashboardCardItem[] = [
+    { title: "Total Bookings", value: isLoadingBookings ? "..." : bookings.length.toString(), icon: CalendarCheck, trend: bookings.length > 0 ? `+${bookings.filter(b => b.status === "Pending").length} pending` : "", actionLabel: "View Bookings", actionHref: "/agency/dashboard/bookings" },
+    { title: "Active Employees", value: isLoadingEmployees ? "..." : employees.length.toString(), icon: Users, actionLabel: "Manage Employees", actionHref: "/agency/dashboard/employees" },
+    { title: "Available Vehicles", value: isLoadingVehicles ? "..." : vehicles.filter(v => v.status === 'Available').length.toString(), icon: Truck, trend: `${vehicles.filter(v => v.status !== 'Available').length} in use/maintenance`, actionLabel: "Manage Vehicles", actionHref: "/agency/dashboard/vehicles" },
+    { title: "Monthly Revenue", value: "$0", icon: DollarSign, trend: "Feature coming soon" }, // Placeholder, actual revenue calculation is complex
+  ];
+  
+  const safeFormat = (date: Date | undefined | string, formatString: string) => {
+    if (!date) return "N/A";
+    try {
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return "Invalid Date";
+      return format(d, formatString);
+    } catch {
+      return "Invalid Date";
+    }
+  }
+
   return (
     <>
       <PageHeader title="Agency Dashboard Overview" description="Welcome back, Agency Admin!">
         <Button asChild>
-          <Link href="/agency/dashboard/bookings"> {/* Assuming "new" is part of the bookings page logic */}
+          <Link href="/agency/dashboard/bookings">
             <PlusCircle className="mr-2 h-4 w-4" /> Add New Booking
           </Link>
         </Button>
@@ -39,6 +75,14 @@ export default function AgencyDashboardOverviewPage() {
         ))}
       </div>
 
+      {bookingsError && (
+        <Alert variant="destructive" className="mb-8">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error Fetching Bookings</AlertTitle>
+          <AlertDescription>{bookingsError.message}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-8 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -46,38 +90,72 @@ export default function AgencyDashboardOverviewPage() {
             <CardDescription>A quick look at your next few scheduled trips.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mockRecentBookings.map((booking) => (
-                  <TableRow key={booking.id}>
-                    <TableCell className="font-medium">{booking.customerName}</TableCell>
-                    <TableCell>{booking.pickupDate.toLocaleDateString()}</TableCell>
-                    <TableCell>{booking.vehicleType}</TableCell>
-                    <TableCell>
-                       <Badge variant={booking.status === 'Confirmed' ? 'default' : booking.status === 'Pending' ? 'secondary' : 'destructive'}>
-                        {booking.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/agency/dashboard/bookings/${booking.id}`}>
-                          View <ExternalLink className="ml-2 h-3 w-3" />
-                        </Link>
-                      </Button>
-                    </TableCell>
+            {isLoadingBookings ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Vehicle</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {[...Array(3)].map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-8 w-16 rounded-md" /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : upcomingBookings.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Vehicle</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {upcomingBookings.map((booking) => (
+                    <TableRow key={booking.id}>
+                      <TableCell className="font-medium">{booking.customerName}</TableCell>
+                      <TableCell>{safeFormat(booking.pickupDate, "PP")}</TableCell>
+                      <TableCell>{booking.vehicleType || "N/A"}</TableCell>
+                      <TableCell>
+                         <Badge 
+                            variant={booking.status === 'Confirmed' ? 'default' : booking.status === 'Pending' ? 'secondary' : 'destructive'}
+                            className={
+                                booking.status === 'Confirmed' ? 'bg-green-500/20 text-green-700 border-green-500/30 hover:bg-green-500/30' :
+                                booking.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30 hover:bg-yellow-500/30' :
+                                'bg-gray-500/20 text-gray-700 border-gray-500/30 hover:bg-gray-500/30' 
+                            }
+                          >
+                          {booking.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/agency/dashboard/bookings?bookingId=${booking.id}`}> 
+                            View <ExternalLink className="ml-2 h-3 w-3" />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p className="text-muted-foreground">No upcoming bookings.</p>
+            )}
           </CardContent>
         </Card>
 
@@ -110,3 +188,5 @@ export default function AgencyDashboardOverviewPage() {
     </>
   );
 }
+
+    
