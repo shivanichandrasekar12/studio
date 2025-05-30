@@ -1,3 +1,4 @@
+
 "use client";
 
 import { PageHeader } from "@/components/page-header";
@@ -9,8 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { Booking } from "@/types";
-import { PlusCircle, MoreHorizontal, CheckCircle, XCircle, Edit, Trash2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { PlusCircle, MoreHorizontal, CheckCircle, XCircle, Edit, Trash2, Loader2, AlertCircle } from "lucide-react";
+import { useState, type FormEvent, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -27,16 +28,22 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getBookings, addBooking, updateBooking, deleteBooking, updateBookingStatus } from "@/lib/services/bookingsService";
+import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-
-const mockBookings: Booking[] = [
-  { id: "B001", customerName: "Diana Prince", customerEmail: "diana@example.com", customerPhone: "555-0201", pickupDate: new Date(2024, 6, 15, 10, 0), dropoffDate: new Date(2024, 6, 15, 14, 0), pickupLocation: "Themyscira Port", dropoffLocation: "Stark Tower", vehicleId: "1", vehicleType: "Sedan", status: "Confirmed", notes: "VIP client, ensure punctuality." },
-  { id: "B002", customerName: "Bruce Wayne", customerEmail: "bruce@example.com", customerPhone: "555-0202", pickupDate: new Date(2024, 6, 16, 18, 0), dropoffDate: new Date(2024, 6, 17, 9, 0), pickupLocation: "Wayne Manor", dropoffLocation: "LexCorp HQ", vehicleId: "4", vehicleType: "Luxury", status: "Pending", notes: "Requires discreet driver." },
-  { id: "B003", customerName: "Clark Kent", customerEmail: "clark@example.com", customerPhone: "555-0203", pickupDate: new Date(2024, 6, 18, 9, 30), dropoffDate: new Date(2024, 6, 18, 10, 30), pickupLocation: "Daily Planet", dropoffLocation: "Smallville Farm", vehicleType: "SUV", status: "Denied", notes: "Unavailable vehicle type for that date." },
-];
 
 export default function BookingsPage() {
-  const [bookings, setBookings] = useState<Booking[]>(mockBookings);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const { data: bookings = [], isLoading: isLoadingBookings, error: bookingsError } = useQuery<Booking[], Error>({
+    queryKey: ["bookings"],
+    queryFn: getBookings,
+  });
+
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
@@ -53,6 +60,51 @@ export default function BookingsPage() {
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<Booking["status"]>("Pending");
 
+  const { mutate: addBookingMutation, isPending: isAddingBooking } = useMutation({
+    mutationFn: addBooking,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      toast({ title: "Booking Added", description: "The new booking has been successfully created." });
+      setIsFormOpen(false);
+    },
+    onError: (error) => {
+      toast({ title: "Error Adding Booking", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const { mutate: updateBookingMutation, isPending: isUpdatingBooking } = useMutation({
+    mutationFn: async (bookingData: { id: string; data: Partial<Omit<Booking, "id">>}) => updateBooking(bookingData.id, bookingData.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      toast({ title: "Booking Updated", description: "The booking has been successfully updated." });
+      setIsFormOpen(false);
+    },
+    onError: (error) => {
+      toast({ title: "Error Updating Booking", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const { mutate: deleteBookingMutation } = useMutation({
+    mutationFn: deleteBooking,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      toast({ title: "Booking Deleted", description: "The booking has been successfully deleted." });
+    },
+    onError: (error) => {
+      toast({ title: "Error Deleting Booking", description: error.message, variant: "destructive" });
+    },
+  });
+  
+  const { mutate: updateStatusMutation } = useMutation({
+    mutationFn: async (data: { id: string; status: Booking["status"]}) => updateBookingStatus(data.id, data.status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      toast({ title: "Booking Status Updated", description: "The booking status has been changed." });
+    },
+    onError: (error) => {
+      toast({ title: "Error Updating Status", description: error.message, variant: "destructive" });
+    },
+  });
 
   const handleOpenForm = (booking?: Booking) => {
     if (booking) {
@@ -60,8 +112,8 @@ export default function BookingsPage() {
       setCustomerName(booking.customerName);
       setCustomerEmail(booking.customerEmail);
       setCustomerPhone(booking.customerPhone);
-      setPickupDate(booking.pickupDate);
-      setDropoffDate(booking.dropoffDate);
+      setPickupDate(booking.pickupDate ? new Date(booking.pickupDate) : undefined);
+      setDropoffDate(booking.dropoffDate ? new Date(booking.dropoffDate) : undefined);
       setPickupLocation(booking.pickupLocation);
       setDropoffLocation(booking.dropoffLocation);
       setVehicleType(booking.vehicleType || "");
@@ -86,43 +138,74 @@ export default function BookingsPage() {
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (!pickupDate || !dropoffDate) {
-      alert("Please select pickup and dropoff dates."); // Replace with proper toast later
+      toast({ title: "Validation Error", description: "Please select pickup and dropoff dates.", variant: "destructive" });
       return;
     }
-    const newBooking: Booking = {
-      id: editingBooking ? editingBooking.id : `B${String(Date.now()).slice(-4)}`,
+    const bookingPayload = {
       customerName, customerEmail, customerPhone,
       pickupDate, dropoffDate, pickupLocation, dropoffLocation,
       vehicleType, status, notes,
     };
+
     if (editingBooking) {
-      setBookings(bookings.map(b => b.id === editingBooking.id ? newBooking : b));
+      updateBookingMutation({id: editingBooking.id, data: bookingPayload});
     } else {
-      setBookings([...bookings, newBooking]);
+      addBookingMutation(bookingPayload);
     }
-    setIsFormOpen(false);
   };
 
   const handleDelete = (bookingId: string) => {
-    setBookings(bookings.filter(b => b.id !== bookingId));
+    if (window.confirm("Are you sure you want to delete this booking?")) {
+      deleteBookingMutation(bookingId);
+    }
   };
   
   const handleUpdateStatus = (bookingId: string, newStatus: Booking["status"]) => {
-     setBookings(bookings.map(b => b.id === bookingId ? {...b, status: newStatus} : b));
+     updateStatusMutation({ id: bookingId, status: newStatus });
   };
 
-  const bookingsForSelectedDate = selectedDate
+  const bookingsForSelectedDate = selectedDate && bookings
     ? bookings.filter(
         (booking) =>
-          new Date(booking.pickupDate).toDateString() === selectedDate.toDateString() ||
-          new Date(booking.dropoffDate).toDateString() === selectedDate.toDateString()
+          (booking.pickupDate && new Date(booking.pickupDate).toDateString() === selectedDate.toDateString()) ||
+          (booking.dropoffDate && new Date(booking.dropoffDate).toDateString() === selectedDate.toDateString())
       )
-    : bookings;
+    : bookings || [];
+
+  const isMutating = isAddingBooking || isUpdatingBooking;
+
+  // Handle case where dates might be invalid
+  const safeFormat = (date: Date | undefined | string, formatString: string) => {
+    if (!date) return "N/A";
+    try {
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return "Invalid Date";
+      return format(d, formatString);
+    } catch {
+      return "Invalid Date";
+    }
+  }
+  
+  const bookedDatesModifier = bookings.reduce((acc, booking) => {
+    if (booking.pickupDate) acc.push(new Date(booking.pickupDate));
+    return acc;
+  }, [] as Date[]);
+
+
+  if (bookingsError) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Error Fetching Bookings</AlertTitle>
+        <AlertDescription>{bookingsError.message}</AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <>
       <PageHeader title="Booking Calendar & Management" description="View and manage all your agency bookings.">
-        <Button onClick={() => handleOpenForm()}>
+        <Button onClick={() => handleOpenForm()} disabled={isMutating}>
           <PlusCircle className="mr-2 h-4 w-4" /> Add Booking
         </Button>
       </PageHeader>
@@ -142,7 +225,7 @@ export default function BookingsPage() {
                   selected={selectedDate}
                   onSelect={setSelectedDate}
                   className="rounded-md border shadow-sm"
-                  modifiers={{ booked: bookings.map(b => b.pickupDate) }}
+                  modifiers={{ booked: bookedDatesModifier }}
                   modifiersStyles={{ booked: { border: "2px solid hsl(var(--primary))" } }}
                 />
               </div>
@@ -150,14 +233,18 @@ export default function BookingsPage() {
                 <h3 className="text-lg font-semibold mb-2 px-4 lg:px-0">
                   Bookings for: {selectedDate ? format(selectedDate, "PPP") : "All Dates"}
                 </h3>
-                {bookingsForSelectedDate.length > 0 ? (
+                {isLoadingBookings ? (
+                  <div className="space-y-2 px-4 lg:px-0 pb-4">
+                    {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-md" />)}
+                  </div>
+                ) : bookingsForSelectedDate.length > 0 ? (
                   <div className="max-h-[300px] overflow-y-auto">
                     <ul className="space-y-2 px-4 lg:px-0 pb-4">
                     {bookingsForSelectedDate.map(booking => (
                       <li key={booking.id} className="p-3 border rounded-md shadow-sm bg-card">
                         <p className="font-medium">{booking.customerName} - {booking.vehicleType}</p>
                         <p className="text-sm text-muted-foreground">
-                          {format(booking.pickupDate, "Pp")} to {format(booking.dropoffDate, "Pp")}
+                          {safeFormat(booking.pickupDate, "Pp")} to {safeFormat(booking.dropoffDate, "Pp")}
                         </p>
                         <Badge variant={booking.status === 'Confirmed' ? 'default' : booking.status === 'Pending' ? 'secondary' : 'destructive'} className="mt-1">
                           {booking.status}
@@ -176,13 +263,13 @@ export default function BookingsPage() {
         <TabsContent value="day">
           <Card>
             <CardHeader><CardTitle>Day View</CardTitle><CardDescription>Detailed schedule for the selected day. (Conceptual)</CardDescription></CardHeader>
-            <CardContent><p className="text-muted-foreground">Day view not fully implemented. Showing all bookings for now.</p></CardContent>
+            <CardContent><p className="text-muted-foreground">Day view not fully implemented. Showing bookings for selected date for now.</p></CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="week">
           <Card>
             <CardHeader><CardTitle>Week View</CardTitle><CardDescription>Overview of bookings for the selected week. (Conceptual)</CardDescription></CardHeader>
-            <CardContent><p className="text-muted-foreground">Week view not fully implemented. Showing all bookings for now.</p></CardContent>
+            <CardContent><p className="text-muted-foreground">Week view not fully implemented. Showing bookings for selected week for now.</p></CardContent>
           </Card>
         </TabsContent>
       </Tabs>
@@ -193,6 +280,30 @@ export default function BookingsPage() {
           <CardDescription>A comprehensive list of all bookings.</CardDescription>
         </CardHeader>
         <CardContent>
+          {isLoadingBookings ? (
+             <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Dates</TableHead>
+                    <TableHead>Vehicle Type</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[...Array(5)].map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+            </Table>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -208,7 +319,7 @@ export default function BookingsPage() {
                 <TableRow key={booking.id}>
                   <TableCell className="font-medium">{booking.customerName}</TableCell>
                   <TableCell>
-                    {format(booking.pickupDate, "PPp")} - <br/> {format(booking.dropoffDate, "PPp")}
+                    {safeFormat(booking.pickupDate, "PPp")} - <br/> {safeFormat(booking.dropoffDate, "PPp")}
                   </TableCell>
                   <TableCell>{booking.vehicleType}</TableCell>
                   <TableCell>
@@ -217,7 +328,8 @@ export default function BookingsPage() {
                       className={
                         booking.status === 'Confirmed' ? 'bg-green-500/20 text-green-700 border-green-500/30 hover:bg-green-500/30' :
                         booking.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30 hover:bg-yellow-500/30' :
-                        booking.status === 'Denied' ? 'bg-red-500/20 text-red-700 border-red-500/30 hover:bg-red-500/30' : ''
+                        booking.status === 'Denied' || booking.status === 'Cancelled' ? 'bg-red-500/20 text-red-700 border-red-500/30 hover:bg-red-500/30' : 
+                        'bg-blue-500/20 text-blue-700 border-blue-500/30 hover:bg-blue-500/30' // Completed
                       }
                     >
                       {booking.status}
@@ -236,15 +348,25 @@ export default function BookingsPage() {
                         <DropdownMenuItem onClick={() => handleOpenForm(booking)}>
                           <Edit className="mr-2 h-4 w-4" /> Edit
                         </DropdownMenuItem>
-                        {booking.status === "Pending" && (
-                          <>
+                        {(booking.status === "Pending" || booking.status === "Denied") && (
                             <DropdownMenuItem onClick={() => handleUpdateStatus(booking.id, "Confirmed")} className="text-green-600 focus:text-green-600">
                               <CheckCircle className="mr-2 h-4 w-4" /> Confirm
                             </DropdownMenuItem>
+                        )}
+                        {booking.status === "Pending" && (
                             <DropdownMenuItem onClick={() => handleUpdateStatus(booking.id, "Denied")} className="text-red-600 focus:text-red-600">
                               <XCircle className="mr-2 h-4 w-4" /> Deny
                             </DropdownMenuItem>
-                          </>
+                        )}
+                         {booking.status === "Confirmed" && (
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(booking.id, "Completed")} className="text-blue-600 focus:text-blue-600">
+                              <CheckCircle className="mr-2 h-4 w-4" /> Mark as Completed
+                            </DropdownMenuItem>
+                        )}
+                         {(booking.status === "Confirmed" || booking.status === "Pending") && (
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(booking.id, "Cancelled")} className="text-orange-600 focus:text-orange-600">
+                              <XCircle className="mr-2 h-4 w-4" /> Cancel Booking
+                            </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50" onClick={() => handleDelete(booking.id)}>
@@ -257,6 +379,7 @@ export default function BookingsPage() {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -358,8 +481,11 @@ export default function BookingsPage() {
               </div>
             </div>
             <DialogFooter className="sticky bottom-0 bg-background py-4 border-t">
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancel</Button>
-              <Button type="submit">{editingBooking ? "Save Changes" : "Create Booking"}</Button>
+              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)} disabled={isMutating}>Cancel</Button>
+              <Button type="submit" disabled={isMutating}>
+                {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {editingBooking ? "Save Changes" : "Create Booking"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
