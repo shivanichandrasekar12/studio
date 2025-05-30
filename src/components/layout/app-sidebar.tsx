@@ -13,7 +13,10 @@ import {
   LogOut,
   Settings,
   Bell,
-  MessageSquareText, // Added for Reviews
+  MessageSquareText,
+  UserCircle,
+  ShieldCheck,
+  ShoppingCart
 } from "lucide-react";
 import {
   Sidebar,
@@ -26,25 +29,57 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { NavItem } from "@/types";
+import type { NavItem, UserRole } from "@/types";
 import { Separator } from "../ui/separator";
 import { useToast } from "@/hooks/use-toast";
 
-const navItems: NavItem[] = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Employees", href: "/dashboard/employees", icon: Users },
-  { title: "Vehicles", href: "/dashboard/vehicles", icon: Truck },
-  { title: "Bookings", href: "/dashboard/bookings", icon: CalendarDays },
-  { title: "Notifications", href: "/dashboard/notifications", icon: Bell },
-  { title: "Reviews", href: "/dashboard/reviews", icon: MessageSquareText },
-  { title: "AI Allocation", href: "/dashboard/ai-vehicle-allocation", icon: Wand2 },
-];
+interface AppSidebarProps {
+  userRole: UserRole;
+}
 
-export function AppSidebar() {
+const getNavItems = (role: UserRole): NavItem[] => {
+  const baseDashboardPath = `/${role}/dashboard`;
+  if (role === "agency") {
+    return [
+      { title: "Dashboard", href: `${baseDashboardPath}`, icon: LayoutDashboard },
+      { title: "Employees", href: `${baseDashboardPath}/employees`, icon: Users },
+      { title: "Vehicles", href: `${baseDashboardPath}/vehicles`, icon: Truck },
+      { title: "Bookings", href: `${baseDashboardPath}/bookings`, icon: CalendarDays },
+      { title: "Notifications", href: `${baseDashboardPath}/notifications`, icon: Bell },
+      { title: "Reviews", href: `${baseDashboardPath}/reviews`, icon: MessageSquareText },
+      { title: "AI Allocation", href: `${baseDashboardPath}/ai-vehicle-allocation`, icon: Wand2 },
+    ];
+  }
+  if (role === "customer") {
+    return [
+      { title: "Dashboard", href: `${baseDashboardPath}`, icon: LayoutDashboard },
+      { title: "My Bookings", href: `${baseDashboardPath}/my-bookings`, icon: ShoppingCart },
+      { title: "Notifications", href: `${baseDashboardPath}/notifications`, icon: Bell },
+      { title: "My Reviews", href: `${baseDashboardPath}/reviews`, icon: MessageSquareText },
+    ];
+  }
+  if (role === "admin") {
+    return [
+      { title: "Overview", href: `${baseDashboardPath}`, icon: LayoutDashboard },
+      { title: "Manage Users", href: `${baseDashboardPath}/users`, icon: Users },
+      { title: "Manage Agencies", href: `${baseDashboardPath}/agencies`, icon: Briefcase },
+      { title: "Platform Bookings", href: `${baseDashboardPath}/all-bookings`, icon: CalendarDays },
+      { title: "System Settings", href: `${baseDashboardPath}/system-settings`, icon: Settings },
+    ];
+  }
+  return [];
+};
+
+export function AppSidebar({ userRole }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
   const { state, isMobile } = useSidebar();
+
+  const navItems = getNavItems(userRole);
+  const baseDashboardPath = `/${userRole}/dashboard`;
+  const baseAuthPath = `/${userRole}-auth`;
+
 
   const isCollapsed = state === "collapsed" && !isMobile;
 
@@ -53,20 +88,43 @@ export function AppSidebar() {
       title: "Logged Out",
       description: "You have been successfully logged out.",
     });
-    router.push("/login");
+    router.push(userRole === 'agency' ? `${baseAuthPath}/login` : userRole === 'customer' ? `${baseAuthPath}/login` : `${baseAuthPath}/login`);
   };
 
   const handleSettingsClick = () => {
-    router.push("/dashboard/settings");
+    router.push(`${baseDashboardPath}/settings`);
   };
+  
+  const getAvatarFallback = () => {
+    if (userRole === "agency") return "AG";
+    if (userRole === "customer") return "CU";
+    if (userRole === "admin") return "AD";
+    return "U";
+  }
+  
+  const getUserEmail = () => {
+     if (userRole === "agency") return "agency@example.com";
+     if (userRole === "customer") return "customer@example.com";
+     if (userRole === "admin") return "admin@example.com";
+     return "user@example.com";
+  }
+
+  const getUserDisplayName = () => {
+     if (userRole === "agency") return "Agency Admin";
+     if (userRole === "customer") return "Customer User";
+     if (userRole === "admin") return "Platform Admin";
+     return "User";
+  }
+
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
-        <Link href="/dashboard" className="flex items-center gap-2">
+        <Link href={baseDashboardPath} className="flex items-center gap-2">
           <Briefcase className="h-8 w-8 text-primary" />
-          {!isCollapsed && <span className="text-xl font-semibold text-sidebar-foreground">NomadX_Agency</span>}
+          {!isCollapsed && <span className="text-xl font-semibold text-sidebar-foreground">NomadX</span>}
         </Link>
+         {!isCollapsed && <span className="text-xs text-muted-foreground -mt-1 ml-10 capitalize">{userRole}</span>}
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>
@@ -74,7 +132,7 @@ export function AppSidebar() {
             <SidebarMenuItem key={item.title}>
               <Link href={item.href} passHref legacyBehavior>
                 <SidebarMenuButton
-                  isActive={pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))}
+                  isActive={pathname === item.href || (item.href !== baseDashboardPath && pathname.startsWith(item.href))}
                   tooltip={isCollapsed ? item.title : undefined}
                   aria-label={item.title}
                   asChild={isCollapsed}
@@ -97,13 +155,13 @@ export function AppSidebar() {
         {!isCollapsed && <Separator className="my-2 bg-sidebar-border" />}
         <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : 'px-2 py-2'}`}>
           <Avatar className="h-9 w-9">
-            <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user avatar" />
-            <AvatarFallback>AG</AvatarFallback>
+            <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user avatar"/>
+            <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
           </Avatar>
           {!isCollapsed && (
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-sidebar-foreground">Agency Admin</span>
-              <span className="text-xs text-muted-foreground">admin@agency.com</span>
+              <span className="text-sm font-medium text-sidebar-foreground">{getUserDisplayName()}</span>
+              <span className="text-xs text-muted-foreground">{getUserEmail()}</span>
             </div>
           )}
         </div>

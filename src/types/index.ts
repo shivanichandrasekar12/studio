@@ -1,4 +1,6 @@
 
+export type UserRole = 'customer' | 'agency' | 'admin';
+
 export type Employee = {
   id: string;
   name: string;
@@ -33,6 +35,8 @@ export type Booking = {
   employeeId?: string; // Driver
   status: "Pending" | "Confirmed" | "Denied" | "Completed" | "Cancelled";
   notes?: string;
+  agencyId?: string; // To associate booking with an agency
+  customerId?: string; // To associate booking with a customer
 };
 
 export type NavItem = {
@@ -61,17 +65,21 @@ export type NotificationItem = {
   timestamp: Date;
   read: boolean;
   link?: string;
+  userId?: string; // For user-specific notifications
+  role?: UserRole; // For role-specific notifications
 };
 
 export type Review = {
   id: string;
   bookingId?: string;
-  customerName: string;
+  customerName: string; // Could be customerId in future
+  agencyId?: string;
+  reviewerRole?: UserRole; // Who wrote this review
+  subjectRole?: UserRole; // Who/what is being reviewed (e.g. customer reviews agency, agency reviews customer)
   rating: number; // e.g., 1-5
   title?: string;
   comment: string;
   createdAt: Date;
   avatarUrl?: string;
-  reviewType: 'customer' | 'driver_report' | 'agency_assessment';
+  reviewType: 'customer' | 'driver_report' | 'agency_assessment'; // more specific agency review types
 };
-

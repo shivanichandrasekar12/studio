@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Bell, Menu, Search } from "lucide-react";
+import { Bell, Menu, Search, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,42 +18,46 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import type { NotificationItem } from "@/types";
+import type { NotificationItem, UserRole } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 
 interface AppHeaderProps {
   title: string;
+  userRole: UserRole;
 }
 
 const initialNotifications: NotificationItem[] = [
-  { id: "1", title: "New Booking Request", description: "John Doe - Toyota Camry - Tomorrow 10 AM", timestamp: new Date(Date.now() - 3600000 * 1), read: false, link: "/dashboard/bookings" },
-  { id: "2", title: "Vehicle Maintenance Due", description: "Sedan XYZ-123 - Oil Change", timestamp: new Date(Date.now() - 3600000 * 5), read: false, link: "/dashboard/vehicles" },
+  { id: "1", title: "New Booking Request", description: "John Doe - Toyota Camry - Tomorrow 10 AM", timestamp: new Date(Date.now() - 3600000 * 1), read: false, link: "/agency/dashboard/bookings" },
+  { id: "2", title: "Vehicle Maintenance Due", description: "Sedan XYZ-123 - Oil Change", timestamp: new Date(Date.now() - 3600000 * 5), read: false, link: "/agency/dashboard/vehicles" },
   { id: "3", title: "Employee Shift Reminder", description: "Jane Smith - Starts in 1 hour", timestamp: new Date(Date.now() - 3600000 * 0.5), read: true },
 ];
 
 
-export function AppHeader({ title }: AppHeaderProps) {
+export function AppHeader({ title, userRole }: AppHeaderProps) {
   const { isMobile } = useSidebar();
   const router = useRouter();
   const { toast } = useToast();
   const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
 
   const unreadCount = notifications.filter(n => !n.read).length;
+  
+  const baseDashboardPath = `/${userRole}/dashboard`;
 
   const handleLogout = () => {
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
     });
-    router.push("/login");
+    // Redirect to the role-specific login page or a general landing page
+    router.push(userRole === 'agency' ? "/agency-auth/login" : userRole === 'customer' ? "/customer-auth/login" : "/admin-auth/login");
   };
 
   const handleSettingsClick = () => {
-    router.push("/dashboard/settings");
+    router.push(`${baseDashboardPath}/settings`);
   };
 
   const handleProfileClick = () => {
-    router.push("/dashboard/profile");
+    router.push(`${baseDashboardPath}/profile`);
   };
 
   const handleNotificationClick = (notification: NotificationItem) => {
@@ -67,14 +71,20 @@ export function AppHeader({ title }: AppHeaderProps) {
       description: notification.link ? `Navigating to details...` : "Marked as read.",
     });
     if (notification.link) {
-      router.push(notification.link);
+      router.push(notification.link); // Assuming links are already role-specific if needed
     }
   };
 
   const handleViewAllNotifications = () => {
-    router.push("/dashboard/notifications");
+    router.push(`${baseDashboardPath}/notifications`);
   };
 
+  const getAvatarFallback = () => {
+    if (userRole === "agency") return "AG";
+    if (userRole === "customer") return "CU";
+    if (userRole === "admin") return "AD";
+    return "U";
+  }
 
   return (
     <header className="flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 sticky top-0 z-30">
@@ -145,14 +155,14 @@ export function AppHeader({ title }: AppHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className="h-8 w-8">
-                <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user profile" />
-                <AvatarFallback>AG</AvatarFallback>
+                <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user profile"/>
+                <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
               </Avatar>
               <span className="sr-only">Toggle user menu</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuLabel>My Account ({userRole})</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleProfileClick}>Profile</DropdownMenuItem>
             <DropdownMenuItem onClick={handleSettingsClick}>Settings</DropdownMenuItem>

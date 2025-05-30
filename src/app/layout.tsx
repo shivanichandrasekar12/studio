@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'NomadX_Agency',
-  description: 'Streamline Your Travel Agency Operations',
+  title: 'NomadX',
+  description: 'Unified Platform for Travel Bookings, Agency Management, and Admin Oversight',
 };
 
 export default function RootLayout({

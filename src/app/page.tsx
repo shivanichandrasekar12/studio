@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Briefcase, CalendarCheck, Users, Car } from "lucide-react";
+import { ArrowRight, Briefcase, CalendarCheck, Users, Car, UserCog, Building } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -8,21 +8,44 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <header className="px-4 lg:px-6 h-16 flex items-center border-b">
-        <Link href="#" className="flex items-center justify-center" prefetch={false}>
+        <Link href="/" className="flex items-center justify-center" prefetch={false}>
           <Briefcase className="h-6 w-6 text-primary" />
-          <span className="ml-2 text-xl font-bold">NomadX_Agency</span>
+          <span className="ml-2 text-xl font-bold">NomadX</span>
         </Link>
-        <nav className="ml-auto flex gap-4 sm:gap-6">
-          <Link
-            href="/login"
-            className="text-sm font-medium hover:underline underline-offset-4"
-            prefetch={false}
-          >
-            Login
-          </Link>
-          <Button asChild>
-            <Link href="/register">Get Started</Link>
-          </Button>
+        <nav className="ml-auto flex gap-2 sm:gap-4 items-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">Login</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Login As</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/customer-auth/login">Customer</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/agency-auth/login">Agency</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/admin-auth/login">Admin</Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+           <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button>Get Started</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Register As</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                 <Link href="/customer-auth/register">Customer</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/agency-auth/register">Agency</Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </nav>
       </header>
       <main className="flex-1">
@@ -32,33 +55,33 @@ export default function LandingPage() {
               <div className="flex flex-col justify-center space-y-4">
                 <div className="space-y-2">
                   <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
-                    Streamline Your Travel Agency Operations with <span className="text-primary">NomadX_Agency</span>
+                    The Future of Travel Coordination: <span className="text-primary">NomadX</span>
                   </h1>
                   <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                    Manage your employees, vehicles, and bookings all in one place. Get AI-powered vehicle suggestions and stay organized with our intuitive platform.
+                    Seamlessly connect customers, agencies, and administrators on a unified platform. Book rides, manage operations, and oversee the entire ecosystem with NomadX.
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
                   <Button asChild size="lg" className="group">
-                    <Link href="/register">
-                      Register Your Agency
+                    <Link href="/customer-auth/register">
+                      Book Your Ride
                       <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                     </Link>
                   </Button>
                   <Button asChild variant="outline" size="lg">
-                    <Link href="/login">
-                      Login to Dashboard
+                    <Link href="/agency-auth/register">
+                      Register Your Agency
                     </Link>
                   </Button>
                 </div>
               </div>
               <Image
                 src="https://placehold.co/600x400.png"
-                alt="NomadX_Agency Dashboard Mockup"
+                alt="NomadX Platform Mockup"
                 width={600}
                 height={400}
                 className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last"
-                data-ai-hint="travel agency dashboard"
+                data-ai-hint="travel platform dashboard"
                 priority
               />
             </div>
@@ -68,10 +91,10 @@ export default function LandingPage() {
           <div className="container px-4 md:px-6">
             <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <div className="space-y-2">
-                <div className="inline-block rounded-lg bg-secondary px-3 py-1 text-sm">Key Features</div>
-                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Everything You Need to Succeed</h2>
+                <div className="inline-block rounded-lg bg-secondary px-3 py-1 text-sm">Key Platform Features</div>
+                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Empowering Every User Role</h2>
                 <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  NomadX_Agency provides a comprehensive suite of tools to help your travel agency thrive.
+                  NomadX provides tailored tools for customers, travel agencies, and administrators.
                 </p>
               </div>
             </div>
@@ -79,28 +102,28 @@ export default function LandingPage() {
               <Card>
                 <CardHeader className="pb-4">
                   <Users className="h-8 w-8 text-primary mb-2" />
-                  <CardTitle>Employee Management</CardTitle>
+                  <CardTitle>For Customers</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <CardDescription>Easily add, update, and manage profiles for all your agency staff.</CardDescription>
+                  <CardDescription>Effortlessly book rides, manage your trips, and communicate with agencies.</CardDescription>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-4">
-                  <Car className="h-8 w-8 text-primary mb-2" />
-                  <CardTitle>Vehicle Fleet Control</CardTitle>
+                  <Building className="h-8 w-8 text-primary mb-2" />
+                  <CardTitle>For Agencies</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <CardDescription>Keep track of vehicle details, availability, and maintenance schedules.</CardDescription>
+                  <CardDescription>Manage your fleet, staff, and bookings with an AI-powered dashboard.</CardDescription>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-4">
-                  <CalendarCheck className="h-8 w-8 text-primary mb-2" />
-                  <CardTitle>Smart Booking Calendar</CardTitle>
+                  <UserCog className="h-8 w-8 text-primary mb-2" />
+                  <CardTitle>For Admins</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <CardDescription>Visualize bookings, avoid conflicts, and manage reservations efficiently.</CardDescription>
+                  <CardDescription>Oversee platform operations, user activity, and ensure smooth service delivery.</CardDescription>
                 </CardContent>
               </Card>
             </div>
@@ -108,7 +131,7 @@ export default function LandingPage() {
         </section>
       </main>
       <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
-        <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} NomadX_Agency. All rights reserved.</p>
+        <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} NomadX. All rights reserved.</p>
         <nav className="sm:ml-auto flex gap-4 sm:gap-6">
           <Link href="#" className="text-xs hover:underline underline-offset-4" prefetch={false}>
             Terms of Service
@@ -121,3 +144,13 @@ export default function LandingPage() {
     </div>
   );
 }
+
+// Add imports for DropdownMenu if not already there
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
