@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -14,9 +13,9 @@ import {
   Settings,
   Bell,
   MessageSquareText,
-  UserCircle,
-  ShieldCheck,
-  ShoppingCart
+  UserCircle, // Kept for potential future use if needed for a generic user icon
+  ShieldCheck, // For Admin
+  ShoppingCart // For Customer
 } from "lucide-react";
 import {
   Sidebar,
@@ -38,7 +37,7 @@ interface AppSidebarProps {
 }
 
 const getNavItems = (role: UserRole): NavItem[] => {
-  const baseDashboardPath = `/${role}/dashboard`;
+  const baseDashboardPath = `/${role}/dashboard`; // Path now includes role
   if (role === "agency") {
     return [
       { title: "Dashboard", href: `${baseDashboardPath}`, icon: LayoutDashboard },
@@ -53,18 +52,19 @@ const getNavItems = (role: UserRole): NavItem[] => {
   if (role === "customer") {
     return [
       { title: "Dashboard", href: `${baseDashboardPath}`, icon: LayoutDashboard },
-      { title: "My Bookings", href: `${baseDashboardPath}/my-bookings`, icon: ShoppingCart },
+      { title: "My Bookings", href: `${baseDashboardPath}/my-bookings`, icon: ShoppingCart }, // Example new item
       { title: "Notifications", href: `${baseDashboardPath}/notifications`, icon: Bell },
       { title: "My Reviews", href: `${baseDashboardPath}/reviews`, icon: MessageSquareText },
+      // { title: "Book New Ride", href: `${baseDashboardPath}/book-new`, icon: PlusCircle }, // Example
     ];
   }
   if (role === "admin") {
     return [
       { title: "Overview", href: `${baseDashboardPath}`, icon: LayoutDashboard },
-      { title: "Manage Users", href: `${baseDashboardPath}/users`, icon: Users },
-      { title: "Manage Agencies", href: `${baseDashboardPath}/agencies`, icon: Briefcase },
-      { title: "Platform Bookings", href: `${baseDashboardPath}/all-bookings`, icon: CalendarDays },
-      { title: "System Settings", href: `${baseDashboardPath}/system-settings`, icon: Settings },
+      { title: "Manage Users", href: `${baseDashboardPath}/users`, icon: Users }, // Placeholder
+      { title: "Manage Agencies", href: `${baseDashboardPath}/agencies`, icon: Briefcase }, // Placeholder
+      { title: "Platform Bookings", href: `${baseDashboardPath}/all-bookings`, icon: CalendarDays }, // Placeholder
+      { title: "System Settings", href: `${baseDashboardPath}/system-settings`, icon: Settings }, // Placeholder
     ];
   }
   return [];
@@ -78,7 +78,7 @@ export function AppSidebar({ userRole }: AppSidebarProps) {
 
   const navItems = getNavItems(userRole);
   const baseDashboardPath = `/${userRole}/dashboard`;
-  const baseAuthPath = `/${userRole}-auth`;
+  const baseAuthPath = `/${userRole}/auth`; // Auth path now includes role
 
 
   const isCollapsed = state === "collapsed" && !isMobile;
@@ -88,7 +88,7 @@ export function AppSidebar({ userRole }: AppSidebarProps) {
       title: "Logged Out",
       description: "You have been successfully logged out.",
     });
-    router.push(userRole === 'agency' ? `${baseAuthPath}/login` : userRole === 'customer' ? `${baseAuthPath}/login` : `${baseAuthPath}/login`);
+    router.push(`${baseAuthPath}/login`);
   };
 
   const handleSettingsClick = () => {
@@ -121,10 +121,10 @@ export function AppSidebar({ userRole }: AppSidebarProps) {
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <Link href={baseDashboardPath} className="flex items-center gap-2">
-          <Briefcase className="h-8 w-8 text-primary" />
+          {userRole === 'admin' ? <ShieldCheck className="h-8 w-8 text-primary" /> : <Briefcase className="h-8 w-8 text-primary" />}
           {!isCollapsed && <span className="text-xl font-semibold text-sidebar-foreground">NomadX</span>}
         </Link>
-         {!isCollapsed && <span className="text-xs text-muted-foreground -mt-1 ml-10 capitalize">{userRole}</span>}
+         {!isCollapsed && <span className="text-xs text-muted-foreground -mt-1 ml-10 capitalize">{userRole} Portal</span>}
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>
@@ -180,6 +180,24 @@ export function AppSidebar({ userRole }: AppSidebarProps) {
                     ) : (
                       <>
                        <Settings /> <span>Settings</span>
+                      </>
+                    )}
+                  </SidebarMenuButton>
+            </SidebarMenuItem>
+             <SidebarMenuItem>
+                 <SidebarMenuButton
+                    variant="ghost"
+                    className="w-full justify-start"
+                    tooltip={isCollapsed ? "Profile" : undefined}
+                    aria-label="Profile"
+                    onClick={() => router.push(`${baseDashboardPath}/profile`)} // Added profile navigation
+                    asChild={isCollapsed}
+                  >
+                    {isCollapsed ? (
+                       <UserCircle />
+                    ) : (
+                      <>
+                       <UserCircle /> <span>Profile</span>
                       </>
                     )}
                   </SidebarMenuButton>

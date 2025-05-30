@@ -1,8 +1,16 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Briefcase, CalendarCheck, Users, Car, UserCog, Building } from "lucide-react";
+import { ArrowRight, Briefcase, Users, Car, UserCog, Building } from "lucide-react"; // Removed CalendarCheck
 import Link from "next/link";
 import Image from "next/image";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function LandingPage() {
   return (
@@ -21,13 +29,13 @@ export default function LandingPage() {
               <DropdownMenuLabel>Login As</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href="/customer-auth/login">Customer</Link>
+                <Link href="/customer/auth/login">Customer</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/agency-auth/login">Agency</Link>
+                <Link href="/agency/auth/login">Agency</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/admin-auth/login">Admin</Link>
+                <Link href="/admin/auth/login">Admin</Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -39,11 +47,12 @@ export default function LandingPage() {
               <DropdownMenuLabel>Register As</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                 <Link href="/customer-auth/register">Customer</Link>
+                 <Link href="/customer/auth/register">Customer</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/agency-auth/register">Agency</Link>
+                <Link href="/agency/auth/register">Agency</Link>
               </DropdownMenuItem>
+              {/* Admin registration is typically not public */}
             </DropdownMenuContent>
           </DropdownMenu>
         </nav>
@@ -63,13 +72,13 @@ export default function LandingPage() {
                 </div>
                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
                   <Button asChild size="lg" className="group">
-                    <Link href="/customer-auth/register">
+                    <Link href="/customer/auth/register">
                       Book Your Ride
                       <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                     </Link>
                   </Button>
                   <Button asChild variant="outline" size="lg">
-                    <Link href="/agency-auth/register">
+                    <Link href="/agency/auth/register">
                       Register Your Agency
                     </Link>
                   </Button>
@@ -144,13 +153,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
-// Add imports for DropdownMenu if not already there
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";

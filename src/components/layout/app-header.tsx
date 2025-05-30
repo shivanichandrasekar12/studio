@@ -1,7 +1,6 @@
-
 "use client";
 
-import { Bell, Menu, Search, UserCircle } from "lucide-react";
+import { Bell, Menu, Search } from "lucide-react"; // Removed UserCircle
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
-import Link from "next/link";
+// import Link from "next/link"; // Not used here
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
@@ -27,9 +26,9 @@ interface AppHeaderProps {
 }
 
 const initialNotifications: NotificationItem[] = [
-  { id: "1", title: "New Booking Request", description: "John Doe - Toyota Camry - Tomorrow 10 AM", timestamp: new Date(Date.now() - 3600000 * 1), read: false, link: "/agency/dashboard/bookings" },
-  { id: "2", title: "Vehicle Maintenance Due", description: "Sedan XYZ-123 - Oil Change", timestamp: new Date(Date.now() - 3600000 * 5), read: false, link: "/agency/dashboard/vehicles" },
-  { id: "3", title: "Employee Shift Reminder", description: "Jane Smith - Starts in 1 hour", timestamp: new Date(Date.now() - 3600000 * 0.5), read: true },
+  { id: "1", title: "New Booking Request", description: "John Doe - Toyota Camry - Tomorrow 10 AM", timestamp: new Date(Date.now() - 3600000 * 1), read: false, type: "booking" },
+  { id: "2", title: "Vehicle Maintenance Due", description: "Sedan XYZ-123 - Oil Change", timestamp: new Date(Date.now() - 3600000 * 5), read: false, type: "system" },
+  { id: "3", title: "Employee Shift Reminder", description: "Jane Smith - Starts in 1 hour", timestamp: new Date(Date.now() - 3600000 * 0.5), read: true, type: "reminder" },
 ];
 
 
@@ -37,19 +36,19 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
   const { isMobile } = useSidebar();
   const router = useRouter();
   const { toast } = useToast();
-  const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications.map(n => ({...n, link: `/${userRole}/dashboard/notifications` }))); // Add role-specific link
 
   const unreadCount = notifications.filter(n => !n.read).length;
   
   const baseDashboardPath = `/${userRole}/dashboard`;
+  const baseAuthPath = `/${userRole}/auth`; // Auth paths are now nested under role
 
   const handleLogout = () => {
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
     });
-    // Redirect to the role-specific login page or a general landing page
-    router.push(userRole === 'agency' ? "/agency-auth/login" : userRole === 'customer' ? "/customer-auth/login" : "/admin-auth/login");
+    router.push(`${baseAuthPath}/login`);
   };
 
   const handleSettingsClick = () => {
@@ -71,7 +70,7 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
       description: notification.link ? `Navigating to details...` : "Marked as read.",
     });
     if (notification.link) {
-      router.push(notification.link); // Assuming links are already role-specific if needed
+      router.push(notification.link); 
     }
   };
 
@@ -128,7 +127,7 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
             <DropdownMenuLabel>Notifications</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {notifications.length > 0 ? (
-              notifications.slice(0, 3).map(notification => ( // Show only first 3 in dropdown
+              notifications.slice(0, 3).map(notification => (
                 <DropdownMenuItem
                   key={notification.id}
                   className={`flex flex-col items-start cursor-pointer ${notification.read ? 'opacity-60' : ''}`}
