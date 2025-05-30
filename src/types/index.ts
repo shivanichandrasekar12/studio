@@ -1,3 +1,4 @@
+
 export type Employee = {
   id: string;
   name: string;
@@ -71,4 +72,6 @@ export type Review = {
   comment: string;
   createdAt: Date;
   avatarUrl?: string;
+  reviewType: 'customer' | 'driver_report' | 'agency_assessment';
 };
+
