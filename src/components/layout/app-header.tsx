@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Bell, Menu, Search } from "lucide-react"; // Removed UserCircle
@@ -41,7 +42,7 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
   const unreadCount = notifications.filter(n => !n.read).length;
   
   const baseDashboardPath = `/${userRole}/dashboard`;
-  const baseAuthPath = `/${userRole}/auth`; // Auth paths are now nested under role
+  const baseAuthPath = `/${userRole}/auth`; 
 
   const handleLogout = () => {
     toast({
@@ -84,6 +85,12 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
     if (userRole === "admin") return "AD";
     return "U";
   }
+
+  const getAvatarSrc = () => {
+     if (userRole === "admin") return "https://placehold.co/100x100.png?text=AD";
+     return "https://placehold.co/100x100.png";
+  }
+
 
   return (
     <header className="flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 sticky top-0 z-30">
@@ -154,7 +161,7 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className="h-8 w-8">
-                <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user profile"/>
+                <AvatarImage src={getAvatarSrc()} alt="User Avatar" data-ai-hint="user profile"/>
                 <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
               </Avatar>
               <span className="sr-only">Toggle user menu</span>

@@ -1,7 +1,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Briefcase, Users, Car, UserCog, Building } from "lucide-react";
+import { ArrowRight, Briefcase, Users, Car, UserCog, Building, ShieldAlert } from "lucide-react"; // Added ShieldAlert
 import Link from "next/link";
 import Image from "next/image";
 import {

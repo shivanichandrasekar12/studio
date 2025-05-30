@@ -107,7 +107,7 @@ export function AppSidebar({ userRole }: AppSidebarProps) {
   const getUserEmail = () => {
      if (userRole === "agency") return "agency@example.com";
      if (userRole === "customer") return "customer@example.com";
-     if (userRole === "admin") return "admin@example.com";
+     if (userRole === "admin") return "admin@nomadx.com";
      return "user@example.com";
   }
 
