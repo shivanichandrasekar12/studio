@@ -61,3 +61,14 @@ export type NotificationItem = {
   read: boolean;
   link?: string;
 };
+
+export type Review = {
+  id: string;
+  bookingId?: string;
+  customerName: string;
+  rating: number; // e.g., 1-5
+  title?: string;
+  comment: string;
+  createdAt: Date;
+  avatarUrl?: string;
+};

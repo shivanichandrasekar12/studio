@@ -13,6 +13,7 @@ import {
   LogOut,
   Settings,
   Bell,
+  MessageSquareText, // Added for Reviews
 } from "lucide-react";
 import {
   Sidebar,
@@ -35,6 +36,7 @@ const navItems: NavItem[] = [
   { title: "Vehicles", href: "/dashboard/vehicles", icon: Truck },
   { title: "Bookings", href: "/dashboard/bookings", icon: CalendarDays },
   { title: "Notifications", href: "/dashboard/notifications", icon: Bell },
+  { title: "Reviews", href: "/dashboard/reviews", icon: MessageSquareText },
   { title: "AI Allocation", href: "/dashboard/ai-vehicle-allocation", icon: Wand2 },
 ];
 
