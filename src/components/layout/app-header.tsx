@@ -17,15 +17,28 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+import type { NotificationItem } from "@/types";
+import { formatDistanceToNow } from "date-fns";
 
 interface AppHeaderProps {
   title: string;
 }
 
+const initialNotifications: NotificationItem[] = [
+  { id: "1", title: "New Booking Request", description: "John Doe - Toyota Camry - Tomorrow 10 AM", timestamp: new Date(Date.now() - 3600000 * 1), read: false }, // 1 hour ago
+  { id: "2", title: "Vehicle Maintenance Due", description: "Sedan XYZ-123 - Oil Change", timestamp: new Date(Date.now() - 3600000 * 5), read: false }, // 5 hours ago
+  { id: "3", title: "Employee Shift Reminder", description: "Jane Smith - Starts in 1 hour", timestamp: new Date(), read: true },
+];
+
+
 export function AppHeader({ title }: AppHeaderProps) {
   const { isMobile } = useSidebar();
   const router = useRouter();
   const { toast } = useToast();
+  const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   const handleLogout = () => {
     toast({
@@ -36,19 +49,35 @@ export function AppHeader({ title }: AppHeaderProps) {
   };
 
   const handleSettingsClick = () => {
-    toast({
-      title: "Settings",
-      description: "Settings page is a placeholder.",
-    });
     router.push("/dashboard/settings");
   };
 
   const handleProfileClick = () => {
-    toast({
-      title: "Profile",
-      description: "Profile page is a placeholder.",
-    });
     router.push("/dashboard/profile");
+  };
+
+  const handleNotificationClick = (notificationId: string) => {
+    setNotifications(prevNotifications =>
+      prevNotifications.map(n =>
+        n.id === notificationId ? { ...n, read: true } : n
+      )
+    );
+    const notification = notifications.find(n => n.id === notificationId);
+    toast({
+      title: `Notification: ${notification?.title || 'Notification'}`,
+      description: notification?.link ? `Navigating...` : "Marked as read.",
+    });
+    if (notification?.link) {
+      router.push(notification.link);
+    }
+  };
+
+  const handleViewAllNotifications = () => {
+    toast({
+      title: "View All Notifications",
+      description: "This feature is not yet implemented.",
+    });
+    // router.push("/dashboard/notifications"); // Future implementation
   };
 
 
@@ -82,29 +111,36 @@ export function AppHeader({ title }: AppHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative rounded-full">
               <Bell className="h-5 w-5" />
-              <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-accent rounded-full">
-                3
-              </span>
+              {unreadCount > 0 && (
+                <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-primary-foreground transform translate-x-1/2 -translate-y-1/2 bg-accent rounded-full">
+                  {unreadCount}
+                </span>
+              )}
               <span className="sr-only">Toggle notifications</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80">
             <DropdownMenuLabel>Notifications</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="flex flex-col items-start">
-              <p className="font-medium">New Booking Request</p>
-              <p className="text-xs text-muted-foreground">John Doe - Toyota Camry - Tomorrow 10 AM</p>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex flex-col items-start">
-              <p className="font-medium">Vehicle Maintenance Due</p>
-              <p className="text-xs text-muted-foreground">Sedan XYZ-123 - Oil Change</p>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex flex-col items-start">
-              <p className="font-medium">Employee Shift Reminder</p>
-              <p className="text-xs text-muted-foreground">Jane Smith - Starts in 1 hour</p>
-            </DropdownMenuItem>
+            {notifications.length > 0 ? (
+              notifications.map(notification => (
+                <DropdownMenuItem
+                  key={notification.id}
+                  className={`flex flex-col items-start cursor-pointer ${notification.read ? 'opacity-60' : ''}`}
+                  onClick={() => handleNotificationClick(notification.id)}
+                >
+                  <p className={`font-medium ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>{notification.title}</p>
+                  <p className="text-xs text-muted-foreground">{notification.description}</p>
+                  <p className="text-xs text-muted-foreground/80 mt-0.5">
+                    {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
+                  </p>
+                </DropdownMenuItem>
+              ))
+            ) : (
+              <DropdownMenuItem disabled className="text-center">No new notifications</DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-center text-primary hover:!text-primary">
+            <DropdownMenuItem className="text-center text-primary hover:!text-primary cursor-pointer" onClick={handleViewAllNotifications}>
               View all notifications
             </DropdownMenuItem>
           </DropdownMenuContent>

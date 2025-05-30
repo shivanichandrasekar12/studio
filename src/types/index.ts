@@ -53,3 +53,11 @@ export type DashboardCardItem = {
   actionHref?: string;
 };
 
+export type NotificationItem = {
+  id: string;
+  title: string;
+  description: string;
+  timestamp: Date;
+  read: boolean;
+  link?: string;
+};
