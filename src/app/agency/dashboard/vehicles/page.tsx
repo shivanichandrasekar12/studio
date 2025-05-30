@@ -1,3 +1,4 @@
+
 "use client";
 
 import { PageHeader } from "@/components/page-header";
@@ -7,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { Vehicle } from "@/types";
-import { PlusCircle, MoreHorizontal, Edit, Trash2 } from "lucide-react"; 
+import { PlusCircle, MoreHorizontal, Edit, Trash2, Loader2, AlertCircle, Truck, Car } from "lucide-react"; 
 import Image from "next/image";
 import {
   Dialog,
@@ -21,16 +22,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, type FormEvent } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getVehicles, addVehicle, updateVehicle, deleteVehicle } from "@/lib/services/vehiclesService";
+import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-const mockVehicles: Vehicle[] = [
-  { id: "1", type: "Sedan", make: "Toyota", model: "Camry", registrationNumber: "XYZ 123", capacity: 5, status: "Available", imageUrl: "https://placehold.co/80x60.png?text=Sedan" },
-  { id: "2", type: "SUV", make: "Honda", model: "CR-V", registrationNumber: "ABC 456", capacity: 5, status: "In Use", imageUrl: "https://placehold.co/80x60.png?text=SUV" },
-  { id: "3", type: "Van", make: "Ford", model: "Transit", registrationNumber: "DEF 789", capacity: 12, status: "Maintenance", imageUrl: "https://placehold.co/80x60.png?text=Van" },
-  { id: "4", type: "Luxury", make: "Mercedes", model: "S-Class", registrationNumber: "GHI 012", capacity: 4, status: "Available", imageUrl: "https://placehold.co/80x60.png?text=Luxury" },
-];
 
 export default function AgencyVehiclesPage() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>(mockVehicles);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const { data: vehicles = [], isLoading: isLoadingVehicles, error: vehiclesError } = useQuery<Vehicle[], Error>({
+    queryKey: ["vehicles"],
+    queryFn: getVehicles,
+  });
+  
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
 
@@ -41,6 +48,43 @@ export default function AgencyVehiclesPage() {
   const [registrationNumber, setRegistrationNumber] = useState("");
   const [capacity, setCapacity] = useState<number | string>("");
   const [status, setStatus] = useState<Vehicle["status"]>("Available");
+  const [imageUrl, setImageUrl] = useState("");
+
+
+  const { mutate: addVehicleMutation, isPending: isAddingVehicle } = useMutation({
+    mutationFn: addVehicle,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      toast({ title: "Vehicle Added", description: "The new vehicle has been successfully added to your fleet." });
+      setIsFormOpen(false);
+    },
+    onError: (error) => {
+      toast({ title: "Error Adding Vehicle", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const { mutate: updateVehicleMutation, isPending: isUpdatingVehicle } = useMutation({
+    mutationFn: async (vehiclePayload: { id: string; data: Partial<Omit<Vehicle, "id">>}) => updateVehicle(vehiclePayload.id, vehiclePayload.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      toast({ title: "Vehicle Updated", description: "The vehicle details have been successfully updated." });
+      setIsFormOpen(false);
+    },
+    onError: (error) => {
+      toast({ title: "Error Updating Vehicle", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const { mutate: deleteVehicleMutation } = useMutation({
+    mutationFn: deleteVehicle,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      toast({ title: "Vehicle Deleted", description: "The vehicle has been successfully removed from your fleet." });
+    },
+    onError: (error) => {
+      toast({ title: "Error Deleting Vehicle", description: error.message, variant: "destructive" });
+    },
+  });
 
 
   const handleOpenForm = (vehicle?: Vehicle) => {
@@ -52,6 +96,7 @@ export default function AgencyVehiclesPage() {
       setRegistrationNumber(vehicle.registrationNumber);
       setCapacity(vehicle.capacity);
       setStatus(vehicle.status);
+      setImageUrl(vehicle.imageUrl || "");
     } else {
       setEditingVehicle(null);
       setType("");
@@ -60,48 +105,93 @@ export default function AgencyVehiclesPage() {
       setRegistrationNumber("");
       setCapacity("");
       setStatus("Available");
+      setImageUrl("");
     }
     setIsFormOpen(true);
   };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    const newVehicle: Vehicle = {
-      id: editingVehicle ? editingVehicle.id : String(Date.now()),
-      type,
-      make,
-      model: modelValue,
-      registrationNumber,
-      capacity: Number(capacity),
-      status,
+    const vehiclePayload = {
+      type, make, model: modelValue, registrationNumber, 
+      capacity: Number(capacity), status, imageUrl: imageUrl || undefined,
     };
+
     if (editingVehicle) {
-      setVehicles(vehicles.map(v => v.id === editingVehicle.id ? newVehicle : v));
+      updateVehicleMutation({id: editingVehicle.id, data: vehiclePayload});
     } else {
-      setVehicles([...vehicles, newVehicle]);
+      addVehicleMutation(vehiclePayload);
     }
-    setIsFormOpen(false);
   };
   
   const handleDelete = (vehicleId: string) => {
-    setVehicles(vehicles.filter(v => v.id !== vehicleId));
+    if (window.confirm("Are you sure you want to delete this vehicle? This action cannot be undone.")) {
+        deleteVehicleMutation(vehicleId);
+    }
   };
 
+  const isMutating = isAddingVehicle || isUpdatingVehicle;
+
+  if (vehiclesError) {
+    return (
+      <div className="container mx-auto p-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error Fetching Vehicles</AlertTitle>
+          <AlertDescription>{vehiclesError.message}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <>
       <PageHeader title="Vehicle Management" description="Oversee your fleet of vehicles.">
-        <Button onClick={() => handleOpenForm()}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Add Vehicle
+        <Button onClick={() => handleOpenForm()} disabled={isMutating}>
+          <Car className="mr-2 h-4 w-4" /> Add Vehicle
         </Button>
       </PageHeader>
 
       <Card>
         <CardHeader>
-          <CardTitle>Vehicle Fleet</CardTitle>
+          <CardTitle className="flex items-center"><Truck className="mr-2 h-5 w-5 text-primary"/>Vehicle Fleet</CardTitle>
           <CardDescription>Details of all vehicles currently in your agency's fleet.</CardDescription>
         </CardHeader>
         <CardContent>
+          {isLoadingVehicles ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Image</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Make & Model</TableHead>
+                  <TableHead>Reg. No.</TableHead>
+                  <TableHead>Capacity</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[...Array(3)].map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-12 w-16 rounded" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-28" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : vehicles.length === 0 ? (
+             <div className="text-center py-10">
+              <Truck className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-lg font-medium text-muted-foreground">No vehicles found in your fleet.</p>
+              <p className="text-sm text-muted-foreground">Click "Add Vehicle" to get started.</p>
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -119,8 +209,8 @@ export default function AgencyVehiclesPage() {
                 <TableRow key={vehicle.id}>
                   <TableCell>
                     <Image 
-                      src={vehicle.imageUrl || `https://placehold.co/80x60.png?text=${vehicle.type}`} 
-                      alt={vehicle.type}
+                      src={vehicle.imageUrl || `https://placehold.co/80x60.png?text=${vehicle.type.substring(0,10)}`} 
+                      alt={`${vehicle.make} ${vehicle.model}`}
                       width={80} 
                       height={60} 
                       className="rounded object-cover"
@@ -166,6 +256,7 @@ export default function AgencyVehiclesPage() {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -197,7 +288,7 @@ export default function AgencyVehiclesPage() {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="capacity" className="text-right">Capacity</Label>
-                <Input id="capacity" type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} className="col-span-3" placeholder="e.g., 5" required />
+                <Input id="capacity" type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} className="col-span-3" placeholder="e.g., 5" required min="1" />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="status" className="text-right">Status</Label>
@@ -212,10 +303,17 @@ export default function AgencyVehiclesPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="imageUrl" className="text-right">Image URL</Label>
+                <Input id="imageUrl" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} className="col-span-3" placeholder="https://placehold.co/80x60.png"/>
+              </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancel</Button>
-              <Button type="submit">{editingVehicle ? "Save Changes" : "Add Vehicle"}</Button>
+              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)} disabled={isMutating}>Cancel</Button>
+              <Button type="submit" disabled={isMutating}>
+                 {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {editingVehicle ? "Save Changes" : "Add Vehicle"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

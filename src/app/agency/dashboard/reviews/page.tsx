@@ -1,3 +1,4 @@
+
 "use client";
 
 import { PageHeader } from "@/components/page-header";
@@ -7,43 +8,112 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Star, PlusCircle, MessageSquareText } from "lucide-react"; 
-import { useState, type FormEvent } from "react";
+import { Star, PlusCircle, MessageSquareText, Loader2, AlertCircle, Edit, Trash2 } from "lucide-react"; 
+import { useState, type FormEvent, useEffect } from "react";
 import type { Review } from "@/types";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-
-const mockReviews: Review[] = [
-  { id: "R001", customerName: "Alice Wonderland", rating: 5, title: "Fantastic Service!", comment: "The driver was punctual and very courteous. The vehicle was clean and comfortable. Made our trip to the airport stress-free.", createdAt: new Date(Date.now() - 86400000 * 2), avatarUrl: "https://placehold.co/40x40.png?text=AW", reviewType: "customer" },
-  { id: "R002", customerName: "Bob The Builder", rating: 4, comment: "Good experience overall. Pickup was slightly delayed, but the driver apologized and was very professional.", createdAt: new Date(Date.now() - 86400000 * 5), avatarUrl: "https://placehold.co/40x40.png?text=BB", reviewType: "customer" },
-  { id: "R003", customerName: "Charlie Brown", rating: 3, title: "It was okay", comment: "The car was a bit older than expected. Service was average.", createdAt: new Date(Date.now() - 86400000 * 10), avatarUrl: "https://placehold.co/40x40.png?text=CB", reviewType: "customer" },
-];
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getReviews, addReview, updateReview, deleteReview } from "@/lib/services/reviewsService";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
 
 
 export default function AgencyReviewsPage() {
-  const [reviews, setReviews] = useState<Review[]>(mockReviews);
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const { data: reviews = [], isLoading: isLoadingReviews, error: reviewsError } = useQuery<Review[], Error>({
+    queryKey: ["reviews"],
+    queryFn: getReviews,
+  });
+
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingReview, setEditingReview] = useState<Review | null>(null);
 
   // Form state
   const [formCustomerName, setFormCustomerName] = useState("");
   const [formRating, setFormRating] = useState(0);
   const [formReviewTitle, setFormReviewTitle] = useState("");
   const [formComment, setFormComment] = useState("");
+  const [formAvatarUrl, setFormAvatarUrl] = useState(""); // Added for consistency with type
+
+  const { mutate: addReviewMutation, isPending: isAddingReview } = useMutation({
+    mutationFn: addReview,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reviews"] });
+      toast({ title: "Customer Review Logged", description: "The customer's feedback has been saved." });
+      resetForm();
+      setIsFormOpen(false);
+    },
+    onError: (error) => {
+      toast({ title: "Error Logging Review", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const { mutate: updateReviewMutation, isPending: isUpdatingReview } = useMutation({
+    mutationFn: async (reviewPayload: { id: string; data: Partial<Omit<Review, "id">>}) => updateReview(reviewPayload.id, reviewPayload.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reviews"] });
+      toast({ title: "Review Updated", description: "The review has been successfully updated." });
+      resetForm();
+      setIsFormOpen(false);
+    },
+    onError: (error) => {
+      toast({ title: "Error Updating Review", description: error.message, variant: "destructive" });
+    },
+  });
+  
+  const { mutate: deleteReviewMutation } = useMutation({
+    mutationFn: deleteReview,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reviews"] });
+      toast({ title: "Review Deleted", description: "The review has been successfully deleted." });
+    },
+    onError: (error) => {
+      toast({ title: "Error Deleting Review", description: error.message, variant: "destructive" });
+    },
+  });
 
   const handleStarClick = (newRating: number) => {
     setFormRating(newRating);
   };
 
   const resetForm = () => {
+    setEditingReview(null);
     setFormCustomerName("");
     setFormRating(0);
     setFormReviewTitle("");
     setFormComment("");
+    setFormAvatarUrl("");
   }
+  
+  const handleOpenForm = (review?: Review) => {
+    if (review) {
+      setEditingReview(review);
+      setFormCustomerName(review.customerName);
+      setFormRating(review.rating);
+      setFormReviewTitle(review.title || "");
+      setFormComment(review.comment);
+      setFormAvatarUrl(review.avatarUrl || "");
+    } else {
+      resetForm();
+    }
+    setIsFormOpen(true);
+  };
+
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -51,20 +121,27 @@ export default function AgencyReviewsPage() {
       toast({ title: "Rating Required", description: "Please select a star rating for the customer.", variant: "destructive" });
       return;
     }
-    const newReview: Review = {
-      id: `R${String(Date.now()).slice(-4)}`,
+    const reviewPayload = {
       customerName: formCustomerName || "Anonymous Customer",
       rating: formRating,
       title: formReviewTitle,
       comment: formComment,
-      createdAt: new Date(),
-      avatarUrl: `https://placehold.co/40x40.png?text=${formCustomerName ? formCustomerName.substring(0,1).toUpperCase() : 'C'}U`,
-      reviewType: "customer" 
+      avatarUrl: formAvatarUrl || `https://placehold.co/40x40.png?text=${formCustomerName ? formCustomerName.substring(0,1).toUpperCase() : 'C'}U`,
+      reviewType: "customer" as Review["reviewType"], // Explicitly customer review
+      // bookingId could be added if there's a way to select it
     };
-    setReviews([newReview, ...reviews]);
-    toast({ title: "Customer Review Logged", description: "The customer's feedback has been saved." });
-    resetForm();
-    setIsFormOpen(false);
+    
+    if (editingReview) {
+      updateReviewMutation({id: editingReview.id, data: reviewPayload});
+    } else {
+      addReviewMutation(reviewPayload);
+    }
+  };
+
+  const handleDelete = (reviewId: string) => {
+    if (window.confirm("Are you sure you want to delete this review? This action cannot be undone.")) {
+      deleteReviewMutation(reviewId);
+    }
   };
   
   const getReviewTypeLabel = (type: Review["reviewType"]) => {
@@ -76,29 +153,44 @@ export default function AgencyReviewsPage() {
     }
   };
 
+  const isMutating = isAddingReview || isUpdatingReview;
+
+  if (reviewsError) {
+     return (
+      <div className="container mx-auto p-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error Fetching Reviews</AlertTitle>
+          <AlertDescription>{reviewsError.message}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+
   return (
     <>
       <PageHeader title="Customer Reviews Management" description="Log and view customer feedback.">
-        <Button onClick={() => setIsFormOpen(!isFormOpen)}>
-          <PlusCircle className="mr-2 h-4 w-4" /> {isFormOpen ? "Cancel Logging" : "Log Customer Review"}
+        <Button onClick={() => handleOpenForm()} disabled={isMutating}>
+          <PlusCircle className="mr-2 h-4 w-4" /> {isFormOpen && !editingReview ? "Cancel Logging" : (editingReview ? "Cancel Editing" : "Log Customer Review")}
         </Button>
       </PageHeader>
 
-      {isFormOpen && (
+      {(isFormOpen || editingReview) && (
         <Card className="mb-8 shadow-lg">
           <CardHeader>
-            <CardTitle>Log Customer Review</CardTitle>
-            <CardDescription>Enter the feedback received from a customer about their experience.</CardDescription>
+            <CardTitle>{editingReview ? "Edit Customer Review" : "Log Customer Review"}</CardTitle>
+            <CardDescription>{editingReview ? "Update the details of this customer feedback." : "Enter the feedback received from a customer about their experience."}</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="formCustomerName">Customer Name</Label>
-                  <Input id="formCustomerName" value={formCustomerName} onChange={(e) => setFormCustomerName(e.target.value)} placeholder="Enter customer's name" />
+                  <Input id="formCustomerName" value={formCustomerName} onChange={(e) => setFormCustomerName(e.target.value)} placeholder="Enter customer's name" required/>
                 </div>
                 <div>
-                  <Label>Customer Rating</Label>
+                  <Label>Customer Rating *</Label>
                   <div className="flex space-x-1 mt-2">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <Star
@@ -118,7 +210,7 @@ export default function AgencyReviewsPage() {
                 <Input id="formReviewTitle" value={formReviewTitle} onChange={(e) => setFormReviewTitle(e.target.value)} placeholder="e.g., Excellent Service!" />
               </div>
               <div>
-                <Label htmlFor="formComment">Customer Comments</Label>
+                <Label htmlFor="formComment">Customer Comments *</Label>
                 <Textarea
                   id="formComment"
                   value={formComment}
@@ -128,9 +220,17 @@ export default function AgencyReviewsPage() {
                   required
                 />
               </div>
+              <div>
+                <Label htmlFor="formAvatarUrl">Customer Avatar URL (Optional)</Label>
+                <Input id="formAvatarUrl" value={formAvatarUrl} onChange={(e) => setFormAvatarUrl(e.target.value)} placeholder="https://placehold.co/40x40.png" />
+              </div>
             </CardContent>
-            <CardFooter>
-              <Button type="submit">Save Customer Review</Button>
+            <CardFooter className="gap-2">
+              <Button type="submit" disabled={isMutating}>
+                {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {editingReview ? "Save Changes" : "Save Customer Review"}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => { setIsFormOpen(false); resetForm(); }}>Cancel</Button>
             </CardFooter>
           </form>
         </Card>
@@ -138,11 +238,32 @@ export default function AgencyReviewsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Feedback Log</CardTitle>
+          <CardTitle className="flex items-center"><MessageSquareText className="mr-2 h-5 w-5 text-primary"/>Feedback Log</CardTitle>
           <CardDescription>All logged feedback for your agency.</CardDescription>
         </CardHeader>
         <CardContent>
-          {reviews.length > 0 ? (
+          {isLoadingReviews ? (
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i} className="p-4 shadow-sm">
+                  <div className="flex items-start space-x-4">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-4 w-1/2" />
+                      <Skeleton className="h-8 w-full" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : reviews.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              <MessageSquareText className="mx-auto h-12 w-12 mb-4" />
+              <p className="text-lg font-medium">No reviews logged yet.</p>
+              <p className="text-sm">Use the 'Log Customer Review' button to add feedback.</p>
+            </div>
+          ) : (
             <ScrollArea className="h-[calc(100vh-25rem)] pr-3">
               <div className="space-y-6">
                 {reviews.map((review) => (
@@ -175,9 +296,26 @@ export default function AgencyReviewsPage() {
                           <p className="text-xs text-muted-foreground">
                             {formatDistanceToNow(review.createdAt, { addSuffix: true })}
                           </p>
-                          <Badge variant={review.reviewType === 'customer' ? 'secondary' : 'outline'}>
-                            {getReviewTypeLabel(review.reviewType)}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={review.reviewType === 'customer' ? 'secondary' : 'outline'}>
+                              {getReviewTypeLabel(review.reviewType)}
+                            </Badge>
+                             <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleOpenForm(review)}>
+                                  <Edit className="mr-2 h-4 w-4" /> Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDelete(review.id)} className="text-red-600 focus:text-red-600">
+                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -185,12 +323,6 @@ export default function AgencyReviewsPage() {
                 ))}
               </div>
             </ScrollArea>
-          ) : (
-            <div className="text-center text-muted-foreground py-8">
-              <MessageSquareText className="mx-auto h-12 w-12 mb-4" />
-              <p className="text-lg font-medium">No reviews logged yet.</p>
-              <p className="text-sm">Use the 'Log Customer Review' button to add feedback.</p>
-            </div>
           )}
         </CardContent>
       </Card>

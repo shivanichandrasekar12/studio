@@ -1,59 +1,85 @@
+
 "use client";
 
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Mail, BellRing, ListChecks } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle, Mail, BellRing, ListChecks, Loader2, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
 import type { NotificationItem } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-const initialNotifications: NotificationItem[] = [
-  { id: "1", title: "New Booking Request", description: "John Doe - Toyota Camry - Tomorrow 10 AM", timestamp: new Date(Date.now() - 3600000 * 1), read: false, link: "/agency/dashboard/bookings" },
-  { id: "2", title: "Vehicle Maintenance Due", description: "Sedan XYZ-123 - Oil Change", timestamp: new Date(Date.now() - 3600000 * 5), read: false, link: "/agency/dashboard/vehicles" },
-  { id: "3", title: "Employee Shift Reminder", description: "Jane Smith - Starts in 1 hour", timestamp: new Date(Date.now() - 3600000 * 0.5), read: true },
-  { id: "4", title: "Monthly Report Ready", description: "October's performance report is available for download.", timestamp: new Date(Date.now() - 3600000 * 24 * 2), read: true, link: "/agency/dashboard/reports" },
-  { id: "5", title: "Low Tire Pressure Alert", description: "SUV ABC-789 reported low tire pressure on the front-left tire.", timestamp: new Date(Date.now() - 3600000 * 3), read: false, link: "/agency/dashboard/vehicles/2" },
-  { id: "6", title: "New Customer Review", description: "Alice Johnson left a 5-star review for their recent trip.", timestamp: new Date(Date.now() - 3600000 * 8), read: true },
-];
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAgencyNotifications, markAgencyNotificationAsRead, markAllAgencyNotificationsAsRead } from "@/lib/services/notificationsService";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useRouter } from "next/navigation";
 
 
 export default function AgencyNotificationsPage() {
-  const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
+  const queryClient = useQueryClient();
   const { toast } = useToast();
+  const router = useRouter();
+
+  const { data: notifications = [], isLoading: isLoadingNotifications, error: notificationsError } = useQuery<NotificationItem[], Error>({
+    queryKey: ["agencyNotifications"],
+    queryFn: getAgencyNotifications,
+  });
+
+  const { mutate: markAsReadMutation, isPending: isMarkingAsRead } = useMutation({
+    mutationFn: markAgencyNotificationAsRead,
+    onSuccess: (data, notificationId) => {
+      queryClient.invalidateQueries({ queryKey: ["agencyNotifications"] });
+      queryClient.invalidateQueries({ queryKey: ["headerNotifications"] }); // For header count
+      toast({ title: "Notification Marked as Read"});
+    },
+    onError: (error) => {
+      toast({ title: "Error Marking Read", description: error.message, variant: "destructive" });
+    },
+  });
+  
+  const { mutate: markAllAsReadMutation, isPending: isMarkingAllAsRead } = useMutation({
+    mutationFn: markAllAgencyNotificationsAsRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agencyNotifications"] });
+      queryClient.invalidateQueries({ queryKey: ["headerNotifications"] }); // For header count
+      toast({ title: "All Notifications Marked as Read" });
+    },
+    onError: (error) => {
+      toast({ title: "Error Marking All Read", description: error.message, variant: "destructive" });
+    },
+  });
 
   const handleMarkAsRead = (notificationId: string) => {
-    setNotifications(prevNotifications =>
-      prevNotifications.map(n =>
-        n.id === notificationId ? { ...n, read: true } : n
-      )
-    );
-    toast({
-      title: "Notification Marked as Read",
-      description: "The notification status has been updated.",
-    });
+    markAsReadMutation(notificationId);
   };
   
   const handleMarkAllAsRead = () => {
-    setNotifications(prevNotifications =>
-      prevNotifications.map(n => ({ ...n, read: true }))
-    );
-    toast({
-      title: "All Notifications Marked as Read",
-      description: "All notifications have been updated.",
-    });
+    markAllAsReadMutation();
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  if (notificationsError) {
+    return (
+     <div className="container mx-auto p-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error Fetching Notifications</AlertTitle>
+          <AlertDescription>{notificationsError.message}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <>
-      <PageHeader title="All Notifications" description="View and manage all your notifications.">
-        <Button onClick={handleMarkAllAsRead} disabled={unreadCount === 0}>
-          <ListChecks className="mr-2 h-4 w-4" /> Mark All as Read
+      <PageHeader title="All Notifications" description="View and manage all your agency notifications.">
+        <Button onClick={handleMarkAllAsRead} disabled={unreadCount === 0 || isMarkingAllAsRead}>
+          {isMarkingAllAsRead ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ListChecks className="mr-2 h-4 w-4" />}
+           Mark All as Read
         </Button>
       </PageHeader>
 
@@ -63,11 +89,30 @@ export default function AgencyNotificationsPage() {
             <BellRing className="mr-2 h-5 w-5 text-primary" /> Notification Center
           </CardTitle>
           <CardDescription>
-            You have {unreadCount} unread notification{unreadCount === 1 ? "" : "s"}.
+            You have {isLoadingNotifications ? "..." : unreadCount} unread notification{unreadCount === 1 ? "" : "s"}.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {notifications.length > 0 ? (
+          {isLoadingNotifications ? (
+            <div className="space-y-4">
+                {[...Array(5)].map((_, i) => (
+                    <li key={i} className="flex items-start space-x-4 p-4 rounded-lg border">
+                        <Skeleton className="h-5 w-5 rounded-full mt-1" />
+                        <div className="flex-1 space-y-1">
+                            <Skeleton className="h-4 w-3/4" />
+                            <Skeleton className="h-4 w-1/2" />
+                             <Skeleton className="h-3 w-1/4" />
+                        </div>
+                    </li>
+                ))}
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              <BellRing className="mx-auto h-12 w-12 mb-4" />
+              <p className="text-lg font-medium">No notifications yet.</p>
+              <p className="text-sm">Check back later for updates.</p>
+            </div>
+          ) : (
             <ScrollArea className="h-[calc(100vh-20rem)] pr-3"> {/* Adjust height as needed */}
               <ul className="space-y-4">
                 {notifications.map((notification) => (
@@ -80,10 +125,7 @@ export default function AgencyNotificationsPage() {
                     )}
                     onClick={() => {
                       if (notification.link) {
-                        // For now, just log, actual navigation might be complex if using router from here
-                        console.log(`Navigate to: ${notification.link}`);
-                        toast({ title: "Navigating...", description: `To ${notification.title}` });
-                        // router.push(notification.link); // Would need router instance
+                        router.push(notification.link);
                       }
                       if (!notification.read) {
                         handleMarkAsRead(notification.id);
@@ -99,7 +141,7 @@ export default function AgencyNotificationsPage() {
                           {notification.title}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
+                          {notification.timestamp ? formatDistanceToNow(notification.timestamp, { addSuffix: true }) : 'N/A'}
                         </p>
                       </div>
                       <p className={cn("text-sm", notification.read ? "text-muted-foreground" : "text-foreground/90")}>
@@ -114,6 +156,7 @@ export default function AgencyNotificationsPage() {
                             e.stopPropagation(); // Prevent li onClick from firing again
                             handleMarkAsRead(notification.id);
                           }}
+                          disabled={isMarkingAsRead}
                         >
                           Mark as read
                         </Button>
@@ -123,12 +166,6 @@ export default function AgencyNotificationsPage() {
                 ))}
               </ul>
             </ScrollArea>
-          ) : (
-            <div className="text-center text-muted-foreground py-8">
-              <BellRing className="mx-auto h-12 w-12 mb-4" />
-              <p className="text-lg font-medium">No notifications yet.</p>
-              <p className="text-sm">Check back later for updates.</p>
-            </div>
           )}
         </CardContent>
       </Card>

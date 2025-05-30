@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Bell, Menu, Search } from "lucide-react"; // Removed UserCircle
+import { Bell, Menu, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,43 +13,60 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
-// import Link from "next/link"; // Not used here
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { NotificationItem, UserRole } from "@/types";
 import { formatDistanceToNow } from "date-fns";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAgencyNotifications, markAgencyNotificationAsRead } from "@/lib/services/notificationsService"; // Assuming service exists
 
 interface AppHeaderProps {
   title: string;
   userRole: UserRole;
 }
 
-const initialNotifications: NotificationItem[] = [
-  { id: "1", title: "New Booking Request", description: "John Doe - Toyota Camry - Tomorrow 10 AM", timestamp: new Date(Date.now() - 3600000 * 1), read: false, type: "booking" },
-  { id: "2", title: "Vehicle Maintenance Due", description: "Sedan XYZ-123 - Oil Change", timestamp: new Date(Date.now() - 3600000 * 5), read: false, type: "system" },
-  { id: "3", title: "Employee Shift Reminder", description: "Jane Smith - Starts in 1 hour", timestamp: new Date(Date.now() - 3600000 * 0.5), read: true, type: "reminder" },
-];
-
-
 export function AppHeader({ title, userRole }: AppHeaderProps) {
   const { isMobile } = useSidebar();
   const router = useRouter();
   const { toast } = useToast();
-  const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications.map(n => ({...n, link: `/${userRole}/dashboard/notifications` }))); // Add role-specific link
+  const queryClient = useQueryClient();
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // Fetch notifications for the header - limited count
+  const { data: headerNotifications = [], isLoading: isLoadingHeaderNotifications } = useQuery<NotificationItem[], Error>({
+    queryKey: ["headerNotifications", userRole], // Make queryKey role-specific
+    queryFn: () => {
+      if (userRole === 'agency') {
+        return getAgencyNotifications(5); // Fetch top 5 for agency
+      }
+      // Add similar logic for customer/admin if they have separate notification services/collections
+      return Promise.resolve([]); // Default to empty for other roles for now
+    },
+    enabled: !!userRole, // Only run if userRole is available
+  });
+
+
+  const { mutate: markAsReadMutation } = useMutation({
+    mutationFn: markAgencyNotificationAsRead, // Assuming this service is specific or adapted
+    onSuccess: (data, notificationId) => {
+      queryClient.invalidateQueries({ queryKey: ["headerNotifications", userRole] });
+      queryClient.invalidateQueries({ queryKey: ["agencyNotifications"] }); // Invalidate full list if applicable
+    }
+  });
+
+
+  const unreadCount = headerNotifications.filter(n => !n.read).length;
   
   const baseDashboardPath = `/${userRole}/dashboard`;
-  const baseAuthPath = `/${userRole}/auth`; 
+  const baseAuthPath = `/${userRole}/auth/login`; 
 
   const handleLogout = () => {
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
     });
-    router.push(`${baseAuthPath}/login`);
+    router.push(baseAuthPath);
   };
 
   const handleSettingsClick = () => {
@@ -61,11 +78,9 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
   };
 
   const handleNotificationClick = (notification: NotificationItem) => {
-    setNotifications(prevNotifications =>
-      prevNotifications.map(n =>
-        n.id === notification.id ? { ...n, read: true } : n
-      )
-    );
+    if (!notification.read && userRole === 'agency') { // Adapt if other roles get notifications
+      markAsReadMutation(notification.id);
+    }
     toast({
       title: `Notification: ${notification.title}`,
       description: notification.link ? `Navigating to details...` : "Marked as read.",
@@ -88,7 +103,8 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
 
   const getAvatarSrc = () => {
      if (userRole === "admin") return "https://placehold.co/100x100.png?text=AD";
-     return "https://placehold.co/100x100.png";
+     // For other roles, you might have specific logic or a default placeholder
+     return `https://placehold.co/40x40.png?text=${getAvatarFallback()}`;
   }
 
 
@@ -122,7 +138,8 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative rounded-full">
               <Bell className="h-5 w-5" />
-              {unreadCount > 0 && (
+              {isLoadingHeaderNotifications && <Loader2 className="absolute top-0 right-0 h-3 w-3 animate-spin"/>}
+              {!isLoadingHeaderNotifications && unreadCount > 0 && (
                 <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-primary-foreground transform translate-x-1/2 -translate-y-1/2 bg-accent rounded-full">
                   {unreadCount}
                 </span>
@@ -133,22 +150,24 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
           <DropdownMenuContent align="end" className="w-80">
             <DropdownMenuLabel>Notifications</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {notifications.length > 0 ? (
-              notifications.slice(0, 3).map(notification => (
+            {isLoadingHeaderNotifications ? (
+                <DropdownMenuItem disabled className="text-center"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Loading...</DropdownMenuItem>
+            ) : headerNotifications.length > 0 ? (
+              headerNotifications.map(notification => (
                 <DropdownMenuItem
                   key={notification.id}
                   className={`flex flex-col items-start cursor-pointer ${notification.read ? 'opacity-60' : ''}`}
                   onClick={() => handleNotificationClick(notification)}
                 >
                   <p className={`font-medium ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>{notification.title}</p>
-                  <p className="text-xs text-muted-foreground">{notification.description}</p>
+                  <p className="text-xs text-muted-foreground truncate max-w-[250px]">{notification.description}</p>
                   <p className="text-xs text-muted-foreground/80 mt-0.5">
-                    {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
+                    {notification.timestamp ? formatDistanceToNow(new Date(notification.timestamp), { addSuffix: true }) : 'N/A'}
                   </p>
                 </DropdownMenuItem>
               ))
             ) : (
-              <DropdownMenuItem disabled className="text-center">No new notifications</DropdownMenuItem>
+              <DropdownMenuItem disabled className="text-center text-muted-foreground">No new notifications</DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-center text-primary hover:!text-primary cursor-pointer" onClick={handleViewAllNotifications}>
@@ -161,7 +180,7 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={getAvatarSrc()} alt="User Avatar" data-ai-hint="user profile"/>
+                <AvatarImage src={getAvatarSrc()} alt={`${userRole} Avatar`} data-ai-hint="user profile"/>
                 <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
               </Avatar>
               <span className="sr-only">Toggle user menu</span>
@@ -173,7 +192,7 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
             <DropdownMenuItem onClick={handleProfileClick}>Profile</DropdownMenuItem>
             <DropdownMenuItem onClick={handleSettingsClick}>Settings</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50">Logout</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
