@@ -13,9 +13,10 @@ import {
   Settings,
   Bell,
   MessageSquareText,
-  UserCircle, // Kept for potential future use if needed for a generic user icon
-  ShieldCheck, // For Admin
-  ShoppingCart // For Customer
+  UserCircle, 
+  ShieldCheck, 
+  ShoppingCart,
+  PlusCircle // Added PlusCircle
 } from "lucide-react";
 import {
   Sidebar,
@@ -37,7 +38,7 @@ interface AppSidebarProps {
 }
 
 const getNavItems = (role: UserRole): NavItem[] => {
-  const baseDashboardPath = `/${role}/dashboard`; // Path now includes role
+  const baseDashboardPath = `/${role}/dashboard`; 
   if (role === "agency") {
     return [
       { title: "Dashboard", href: `${baseDashboardPath}`, icon: LayoutDashboard },
@@ -52,19 +53,19 @@ const getNavItems = (role: UserRole): NavItem[] => {
   if (role === "customer") {
     return [
       { title: "Dashboard", href: `${baseDashboardPath}`, icon: LayoutDashboard },
-      { title: "My Bookings", href: `${baseDashboardPath}/my-bookings`, icon: ShoppingCart }, // Example new item
+      { title: "My Bookings", href: `${baseDashboardPath}/my-bookings`, icon: ShoppingCart },
+      { title: "Book New Ride", href: `${baseDashboardPath}/book-new`, icon: PlusCircle },
       { title: "Notifications", href: `${baseDashboardPath}/notifications`, icon: Bell },
       { title: "My Reviews", href: `${baseDashboardPath}/reviews`, icon: MessageSquareText },
-      // { title: "Book New Ride", href: `${baseDashboardPath}/book-new`, icon: PlusCircle }, // Example
     ];
   }
   if (role === "admin") {
     return [
       { title: "Overview", href: `${baseDashboardPath}`, icon: LayoutDashboard },
-      { title: "Manage Users", href: `${baseDashboardPath}/users`, icon: Users }, // Placeholder
-      { title: "Manage Agencies", href: `${baseDashboardPath}/agencies`, icon: Briefcase }, // Placeholder
-      { title: "Platform Bookings", href: `${baseDashboardPath}/all-bookings`, icon: CalendarDays }, // Placeholder
-      { title: "System Settings", href: `${baseDashboardPath}/system-settings`, icon: Settings }, // Placeholder
+      { title: "Manage Users", href: `${baseDashboardPath}/users`, icon: Users }, 
+      { title: "Manage Agencies", href: `${baseDashboardPath}/agencies`, icon: Briefcase }, 
+      { title: "Platform Bookings", href: `${baseDashboardPath}/all-bookings`, icon: CalendarDays }, 
+      { title: "System Settings", href: `${baseDashboardPath}/system-settings`, icon: Settings }, 
     ];
   }
   return [];
@@ -78,7 +79,7 @@ export function AppSidebar({ userRole }: AppSidebarProps) {
 
   const navItems = getNavItems(userRole);
   const baseDashboardPath = `/${userRole}/dashboard`;
-  const baseAuthPath = `/${userRole}/auth`; // Auth path now includes role
+  const baseAuthPath = `/${userRole}/auth`; 
 
 
   const isCollapsed = state === "collapsed" && !isMobile;
@@ -190,7 +191,7 @@ export function AppSidebar({ userRole }: AppSidebarProps) {
                     className="w-full justify-start"
                     tooltip={isCollapsed ? "Profile" : undefined}
                     aria-label="Profile"
-                    onClick={() => router.push(`${baseDashboardPath}/profile`)} // Added profile navigation
+                    onClick={() => router.push(`${baseDashboardPath}/profile`)} 
                     asChild={isCollapsed}
                   >
                     {isCollapsed ? (
