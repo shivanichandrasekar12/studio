@@ -11,7 +11,7 @@ export type Vehicle = {
   id: string;
   type: string;
   make: string;
-  model: GgM;
+  model: string;
   registrationNumber: string;
   capacity: number;
   status: "Available" | "In Use" | "Maintenance";
@@ -52,3 +52,4 @@ export type DashboardCardItem = {
   actionLabel?: string;
   actionHref?: string;
 };
+

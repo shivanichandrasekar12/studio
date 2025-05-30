@@ -1,7 +1,8 @@
+
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Briefcase,
   LayoutDashboard,
@@ -24,8 +25,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { NavItem } from "@/types";
-import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
+import { useToast } from "@/hooks/use-toast";
 
 const navItems: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -37,9 +38,27 @@ const navItems: NavItem[] = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { toast } = useToast();
   const { state, isMobile } = useSidebar();
 
   const isCollapsed = state === "collapsed" && !isMobile;
+
+  const handleLogout = () => {
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    });
+    router.push("/login");
+  };
+
+  const handleSettingsClick = () => {
+    toast({
+      title: "Settings",
+      description: "Settings page is a placeholder.",
+    });
+    router.push("/dashboard/settings");
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -95,6 +114,7 @@ export function AppSidebar() {
                     className="w-full justify-start"
                     tooltip={isCollapsed ? "Settings" : undefined}
                     aria-label="Settings"
+                    onClick={handleSettingsClick}
                     asChild={isCollapsed}
                   >
                     {isCollapsed ? (
@@ -107,12 +127,12 @@ export function AppSidebar() {
                   </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-                <Link href="/login" passHref legacyBehavior>
                   <SidebarMenuButton
                     variant="ghost"
                     className="w-full justify-start text-red-500 hover:text-red-500 hover:bg-red-500/10 dark:text-red-400 dark:hover:text-red-400 dark:hover:bg-red-400/10"
                     tooltip={isCollapsed ? "Logout" : undefined}
                     aria-label="Logout"
+                    onClick={handleLogout}
                     asChild={isCollapsed}
                   >
                      {isCollapsed ? (
@@ -123,7 +143,6 @@ export function AppSidebar() {
                       </>
                     )}
                   </SidebarMenuButton>
-                </Link>
             </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
