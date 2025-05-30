@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -16,7 +17,7 @@ import {
   UserCircle, 
   ShieldCheck, 
   ShoppingCart,
-  PlusCircle // Added PlusCircle
+  PlusCircle 
 } from "lucide-react";
 import {
   Sidebar,
@@ -56,7 +57,7 @@ const getNavItems = (role: UserRole): NavItem[] => {
       { title: "My Bookings", href: `${baseDashboardPath}/my-bookings`, icon: ShoppingCart },
       { title: "Book New Ride", href: `${baseDashboardPath}/book-new`, icon: PlusCircle },
       { title: "Notifications", href: `${baseDashboardPath}/notifications`, icon: Bell },
-      { title: "My Reviews", href: `${baseDashboardPath}/reviews`, icon: MessageSquareText },
+      { title: "My Reviews", href: `${baseDashboardPath}/my-reviews`, icon: MessageSquareText },
     ];
   }
   if (role === "admin") {
