@@ -9,16 +9,19 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Fetches the user document based on the authenticated user's UID
     function getUserDoc() {
+      // Safely attempt to get the user document
+      // This path must be exactly /databases/{database}/documents/users/{uid}
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // Checks if the authenticated user has a specific role.
-    // Ensures the user document exists and the role field matches.
     function userHasRole(role) {
       let userDoc = getUserDoc();
-      return isSignedIn() && userDoc.exists && userDoc.data.role == role;
+      // Ensure the document exists AND has data AND the role field matches
+      return isSignedIn() &&
+             userDoc.exists &&
+             userDoc.data != null && // Explicit check for data presence
+             userDoc.data.role == role;
     }
 
     function isCustomer() {
@@ -46,7 +49,7 @@ service cloud.firestore {
       // Update:
       // - Users can update their own profile (e.g., displayName, but not role directly).
       // - Admins can update any user's profile (e.g., to change a role).
-      allow update: if isSignedIn() && 
+      allow update: if isSignedIn() &&
                       ( (request.auth.uid == userId && !('role' in request.resource.data)) || isAdmin() );
                       // Prevents self-role change unless admin
 
@@ -65,115 +68,66 @@ service cloud.firestore {
                        isAdmin();
       // Read:
       // - Customers can read their own bookings.
-      // - Agencies can read all bookings.
+      // - Agencies can read all bookings (for a single-agency setup, or needs agencyId filter for multi-agency).
       // - Admins can read all bookings.
       allow read: if (isCustomer() && resource.data.customerId == request.auth.uid) ||
                      isAgency() ||
                      isAdmin();
       // Update:
-      // - Customers can update specific fields of their own bookings if status allows (e.g., cancel a pending one).
-      //   (This can be more granular, for now, let's say customers cannot update after creation for simplicity).
-      // - Agencies can update any booking (e.g., status, assign vehicle/driver).
+      // - Agencies can update any booking.
       // - Admins can update any booking.
       allow update: if isAgency() || isAdmin();
-      // allow update: if (isCustomer() && resource.data.customerId == request.auth.uid && (resource.data.status == 'Pending' || resource.data.status == 'Confirmed')) ||
-      //                  isAgency() ||
-      //                  isAdmin();
-
 
       // Delete:
       // - Agencies can delete bookings.
       // - Admins can delete bookings.
-      // - Customers cannot delete.
       allow delete: if isAgency() || isAdmin();
     }
 
     // Employees Collection (/employees/{employeeId}) - Primarily Agency data
     match /employees/{employeeId} {
-      // Create, Read, Update, Delete:
-      // - Agencies can manage all employees.
-      // - Admins can manage all employees.
-      // - Customers have no access.
       allow read, write: if isAgency() || isAdmin();
     }
 
     // Vehicles Collection (/vehicles/{vehicleId}) - Primarily Agency data
     match /vehicles/{vehicleId} {
-      // Create, Read, Update, Delete:
-      // - Agencies can manage all vehicles.
-      // - Admins can manage all vehicles.
-      // - Customers have no access.
       allow read, write: if isAgency() || isAdmin();
     }
 
     // Notifications Collection (/notifications/{notificationId})
     match /notifications/{notificationId} {
-      // Create:
-      // - Admins can create any notification.
-      // - Agencies might create certain types (e.g., for their customers or internal).
-      //   For now, let's say only Admins can create broadly. Specific agency creation can be added.
-      allow create: if isAdmin(); // Or (isAdmin() || (isAgency() && request.resource.data.role == 'customer'))
+      allow create: if isAdmin(); // Or specific agency/system logic
 
-      // Read:
-      // - Customers can read notifications targeted to their userId and role 'customer'.
-      // - Agencies can read notifications targeted to role 'agency'.
-      // - Admins can read all notifications.
       allow read: if (isCustomer() && resource.data.userId == request.auth.uid && resource.data.role == 'customer') ||
-                     (isAgency() && resource.data.role == 'agency') || // Assuming no userId for general agency notifications
+                     (isAgency() && resource.data.role == 'agency') || // Assumes general agency notifications don't have a specific agency userId
                      isAdmin();
 
-      // Update: (Primarily for marking as read)
-      // - Customers can update their own notifications.
-      // - Agencies can update agency-wide notifications.
-      // - Admins can update any notification.
       allow update: if ((isCustomer() && resource.data.userId == request.auth.uid && resource.data.role == 'customer') ||
-                        (isAgency() && resource.data.role == 'agency') || // Assuming no userId for general agency notifications
+                        (isAgency() && resource.data.role == 'agency') ||
                         isAdmin()) &&
-                       request.resource.data.keys().hasOnly(['read']); // Only 'read' field can be changed by non-admins
-
-      // Delete:
-      // - Admins can delete notifications.
+                       request.resource.data.keys().hasOnly(['read']);
       allow delete: if isAdmin();
     }
 
     // Reviews Collection (/reviews/{reviewId})
     match /reviews/{reviewId} {
-      // Create:
-      // - Customers can create 'user_submitted' reviews for themselves.
-      // - Agencies can create 'customer_feedback' reviews.
-      // - Admins (potentially, for seeding or moderation).
       allow create: if (isCustomer() && request.resource.data.reviewerId == request.auth.uid && request.resource.data.reviewType == 'user_submitted') ||
                        (isAgency() && request.resource.data.reviewType == 'customer_feedback') ||
-                       isAdmin(); // Admin for seeding/testing
+                       isAdmin();
 
-      // Read:
-      // - Customers can read their own 'user_submitted' reviews.
-      // - Agencies can read 'customer_feedback' reviews and 'user_submitted' reviews (to see what customers said about their service).
-      // - Admins can read all reviews.
       allow read: if (isCustomer() && resource.data.reviewerId == request.auth.uid && resource.data.reviewType == 'user_submitted') ||
                      (isAgency() && (resource.data.reviewType == 'customer_feedback' || resource.data.reviewType == 'user_submitted')) ||
                      isAdmin();
 
-      // Update:
-      // - Agencies can update 'customer_feedback' reviews they logged (assuming reviewerId would be agency's UID or staff UID under agency).
-      //   For simplicity now, any agency user can update any customer_feedback type.
-      // - Admins can update any review (moderation).
-      // - Customers generally shouldn't update reviews once submitted, or only within a short window.
-      allow update: if (isAgency() && resource.data.reviewType == 'customer_feedback') || 
+      allow update: if (isAgency() && resource.data.reviewType == 'customer_feedback') ||
                        isAdmin();
-
-      // Delete:
-      // - Agencies can delete 'customer_feedback' reviews they logged.
-      // - Admins can delete any review.
-      allow delete: if (isAgency() && resource.data.reviewType == 'customer_feedback') || 
+      allow delete: if (isAgency() && resource.data.reviewType == 'customer_feedback') ||
                        isAdmin();
     }
-    
+
     // Default deny for any path not explicitly matched
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
-
-    
