@@ -38,7 +38,7 @@ export default function BookNewRidePage() {
   const [passengers, setPassengers] = useState<string>("1");
   const [vehicleType, setVehicleType] = useState("");
   const [notes, setNotes] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formCalculationError, setFormCalculationError] = useState<string | null>(null); // For calculation errors specifically
 
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [distance, setDistance] = useState<string | null>(null);
@@ -72,7 +72,8 @@ export default function BookNewRidePage() {
     },
     onError: (error) => {
       console.error("Booking submission error:", error);
-      setFormError("Failed to submit your booking request. Please try again."); // This error is for booking submission itself
+      // This error is for booking submission itself, not map calculation.
+      // We can show a toast or a more general form error if needed.
       toast({
         title: "Submission Failed",
         description: (error as Error).message || "Could not submit your booking request.",
@@ -101,21 +102,21 @@ export default function BookNewRidePage() {
     setDistance(null);
     setDuration(null);
     setDirectionsResponse(null);
-    setFormError(null); // Clear previous calculation errors
+    setFormCalculationError(null); 
 
-    if (loadError) { // Google Maps API itself failed to load
-      setFormError("Google Maps API failed to load. Cannot calculate route. You can book without an estimate.");
+    if (loadError) { 
+      setFormCalculationError("Google Maps API failed to load. Cannot calculate route. You can book without an estimate.");
       setIsCalculatingRoute(false);
       return;
     }
-    if (!isLoaded) { // Google Maps API is still trying to load (not yet failed)
-      setFormError("Google Maps is still loading. Please wait or refresh the page.");
+    if (!isLoaded) { 
+      setFormCalculationError("Google Maps is still loading. Please wait or refresh the page to calculate route.");
       setIsCalculatingRoute(false);
       return;
     }
 
     if (!pickupLocation.trim() || !dropoffLocation.trim()) {
-      setFormError("Please enter both pickup and dropoff locations to calculate a route.");
+      setFormCalculationError("Please enter both pickup and dropoff locations to calculate a route.");
       setIsCalculatingRoute(false);
       return;
     }
@@ -144,11 +145,11 @@ export default function BookNewRidePage() {
         setDistance((totalDistance / 1000).toFixed(1) + " km"); 
         setDuration(Math.ceil(totalDuration / 60) + " mins"); 
       } else {
-         setFormError("Could not calculate route. Please check locations. You can book without an estimate, or try again.");
+         setFormCalculationError("Could not calculate route. Please check locations. You can book without an estimate, or try again.");
       }
     } catch (e: any) {
       console.error("Directions request failed", e);
-      setFormError(`Route calculation failed: ${e.message || 'Unknown error'}. You can book without an estimate, or try again.`);
+      setFormCalculationError(`Route calculation failed: ${e.message || 'Unknown error'}. You can book without an estimate, or try again.`);
     } finally {
       setIsCalculatingRoute(false);
     }
@@ -157,16 +158,12 @@ export default function BookNewRidePage() {
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    // Clear general form error for booking submission, map errors are handled by `formError` related to calculation
-    // setFormError(null); // Not this formError, this one is for booking submission itself.
-
+    
     if (!currentUser) {
-      // This case should ideally be prevented by disabling the button
       toast({ title: "Not Logged In", description: "Please log in to book a ride.", variant: "destructive" });
       return;
     }
     if (!pickupDate || !pickupTime) {
-      // Also should be prevented by UI if fields are required
       toast({ title: "Missing Information", description: "Please select a pickup date and time.", variant: "destructive" });
       return;
     }
@@ -176,15 +173,15 @@ export default function BookNewRidePage() {
     fullPickupDate.setHours(hours, minutes, 0, 0);
 
     const fullDropoffDate = new Date(fullPickupDate);
-    if (duration) { // Only add duration if it was successfully calculated
+    if (duration) { 
         const durationMinutes = parseInt(duration.replace(' mins', ''), 10);
         if (!isNaN(durationMinutes)) {
             fullDropoffDate.setMinutes(fullPickupDate.getMinutes() + durationMinutes);
         } else {
-            fullDropoffDate.setHours(fullPickupDate.getHours() + 1); // Fallback if duration parsing fails
+            fullDropoffDate.setHours(fullPickupDate.getHours() + 1); 
         }
     } else {
-      fullDropoffDate.setHours(fullPickupDate.getHours() + 1); // Default 1hr if no duration
+      fullDropoffDate.setHours(fullPickupDate.getHours() + 1); 
     }
     
     const finalWaypoints: Waypoint[] = waypointsInputs
@@ -196,8 +193,8 @@ export default function BookNewRidePage() {
       pickupLocation,
       dropoffLocation,
       waypoints: finalWaypoints.length > 0 ? finalWaypoints : undefined,
-      estimatedDistance: distance || undefined, // Pass undefined if null
-      estimatedDuration: duration || undefined, // Pass undefined if null
+      estimatedDistance: distance || undefined, 
+      estimatedDuration: duration || undefined, 
       pickupDate: fullPickupDate,
       dropoffDate: fullDropoffDate, 
       passengers: parseInt(passengers, 10) || 1,
@@ -223,27 +220,25 @@ export default function BookNewRidePage() {
     requestRideDisabled = true;
     requestRideHelperText = "Please fill in all required fields (pickup/dropoff location, date, and time).";
   } else {
-    // At this point, user is logged in and essential locations/date/time are filled.
-    if (loadError) { // Google Maps API itself failed to load
-      requestRideDisabled = false; // Allow booking
+    if (loadError) { 
+      requestRideDisabled = false; 
       requestRideHelperText = "Google Maps API failed to load. You can request the ride without a route estimate.";
-    } else if (!isLoaded) { // Google Maps API is still trying to load
-      requestRideDisabled = true; // Do not allow booking yet, wait for load or error
+    } else if (!isLoaded) { 
+      requestRideDisabled = true; 
       requestRideHelperText = "Google Maps is loading. Please wait to calculate the route or refresh if it takes too long.";
-    } else { // Google Maps API is loaded (isLoaded = true, loadError = false)
-      if (distance && duration) { // Route has been successfully calculated
+    } else { 
+      if (distance && duration) { 
         requestRideDisabled = false;
         requestRideHelperText = "Route calculated. Ready to request your ride.";
-      } else if (formError && formError.includes("failed")) { // Route calculation was attempted and failed (or maps API failed)
-        requestRideDisabled = false; // Allow booking
+      } else if (formCalculationError && formCalculationError.includes("failed")) { 
+        requestRideDisabled = false; 
         requestRideHelperText = "Route/Map feature issue. You can request the ride without an estimate, or try calculating again.";
-      } else { // Maps loaded, no calculation error yet, but distance/duration not available (user needs to click "Calculate Route")
+      } else { 
         requestRideDisabled = true;
         requestRideHelperText = "Please click 'Calculate Route & Estimate' before submitting.";
       }
     }
   }
-
 
   if (!currentUser && !auth.currentUser) {
     return (
@@ -254,20 +249,16 @@ export default function BookNewRidePage() {
     );
   }
   
-  if (loadError) { // This specific Alert is for Google Maps API load failure
-     let detailedErrorMessage = `Could not load Google Maps. Please check your internet connection and ensure your Google Maps API key is correctly set in the environment variables. Original error: ${loadError.message}`;
+  // Construct detailed error message for Google Maps API load failure
+  let mapInitializationErrorMessage = "";
+  if (loadError) {
+    mapInitializationErrorMessage = `Could not load Google Maps. Please check your internet connection and ensure your Google Maps API key is correctly set. Original error: ${loadError.message}.`;
     if (loadError.message && loadError.message.includes("library directions is unknown")) {
-        detailedErrorMessage = "Map Error: The 'Directions' library failed to load. Please ensure your Google Maps API key has both 'Maps JavaScript API' AND 'Directions API' enabled in your Google Cloud Console. Also, verify that there are no API key restrictions preventing their use for your current domain/localhost, and confirm the API key itself is correct.";
+        mapInitializationErrorMessage = "Map Error: The 'Directions' library failed to load. Ensure your Google Maps API key has 'Maps JavaScript API' AND 'Directions API' enabled in Google Cloud Console. Check API key restrictions and billing status. ";
     } else if (loadError.message && (loadError.message.includes("ApiNotActivatedMapError") || loadError.message.includes("InvalidKeyMapError"))) {
-        detailedErrorMessage = "Map Error: The Google Maps API key is invalid or the Maps JavaScript API is not activated. Please check your API key and ensure 'Maps JavaScript API' is enabled in your Google Cloud Console.";
+        mapInitializationErrorMessage = "Map Error: The Google Maps API key is invalid or the Maps JavaScript API is not activated. Check your API key and ensure 'Maps JavaScript API' is enabled in Google Cloud Console. ";
     }
-     return (
-         <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Map Initialization Error</AlertTitle>
-            <AlertDescription>{detailedErrorMessage} <br/> You can still proceed to book a ride without route estimation if you fill in the details below.</AlertDescription>
-        </Alert>
-    );
+    mapInitializationErrorMessage += "You can still proceed to book a ride without route estimation by filling in the details below.";
   }
 
 
@@ -277,6 +268,15 @@ export default function BookNewRidePage() {
         title="Book a New Ride"
         description="Plan your route, add stops, and get an estimated distance and time for your trip."
       />
+
+      {loadError && ( 
+         <Alert variant="destructive" className="mb-4 max-w-3xl mx-auto">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Map Initialization Error</AlertTitle>
+            <AlertDescription>{mapInitializationErrorMessage}</AlertDescription>
+        </Alert>
+      )}
+
       <Card className="max-w-3xl mx-auto shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl">New Booking Form</CardTitle>
@@ -286,12 +286,11 @@ export default function BookNewRidePage() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-6">
-             {/* Display formError related to route calculation or other general form issues */}
-            {formError && !loadError && ( // Show this only if not superseded by the global loadError Alert
+            {formCalculationError && !loadError && ( 
               <Alert variant="destructive" className="mt-4">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Information</AlertTitle> 
-                <AlertDescription>{formError}</AlertDescription>
+                <AlertTitle>Route Calculation Info</AlertTitle> 
+                <AlertDescription>{formCalculationError}</AlertDescription>
               </Alert>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -346,13 +345,13 @@ export default function BookNewRidePage() {
             </div>
 
             <div className="flex justify-center my-4">
-                 <Button type="button" onClick={calculateRoute} disabled={isCalculatingRoute || isAddingBooking || !pickupLocation.trim() || !dropoffLocation.trim()}>
+                 <Button type="button" onClick={calculateRoute} disabled={isCalculatingRoute || isAddingBooking || !pickupLocation.trim() || !dropoffLocation.trim() || !isLoaded /* Disable if maps not loaded yet */}>
                     {isCalculatingRoute ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Route className="mr-2 h-4 w-4" />}
                     Calculate Route & Estimate
                 </Button>
             </div>
             
-            {(distance || duration) && !formError?.includes("failed") && ( // Only show if calculation was successful
+            {(distance || duration) && !formCalculationError?.includes("failed") && ( 
                 <Card className="bg-muted/50 p-4">
                     <CardHeader className="p-2 pb-1">
                         <CardTitle className="text-lg flex items-center"><Timer className="mr-2 h-5 w-5 text-primary"/>Route Estimate</CardTitle>
@@ -364,7 +363,6 @@ export default function BookNewRidePage() {
                     </CardContent>
                 </Card>
             )}
-
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
               <div className="space-y-2">
