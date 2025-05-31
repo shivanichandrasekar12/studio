@@ -115,14 +115,14 @@ export default function LandingPage() {
                 { title: "Powerful Agency Tools", description: "Manage your fleet, drivers, and bookings efficiently. Optimize operations with AI insights.", icon: Building },
                 { title: "Robust Admin Oversight", description: "Monitor the entire platform, manage users, and ensure service quality across the board.", icon: UserCog }
               ].map((feature, index) => (
-                <Card key={feature.title} className="card-interactive hover:shadow-xl hover:scale-105 transform transition-all duration-300 animate-fade-in-up" style={{animationDelay: `${index * 150}ms`}}>
-                  <CardHeader className="pb-4 items-center text-center">
+                <Card key={feature.title} className="flex flex-col card-interactive hover:shadow-xl hover:scale-105 transform transition-all duration-300 animate-fade-in-up" style={{animationDelay: `${index * 150}ms`}}>
+                  <CardHeader className="pb-4 items-center text-center p-4 sm:p-6">
                     <div className="p-3 rounded-full bg-primary/10 text-primary mb-3">
                       <feature.icon className="h-8 w-8" />
                     </div>
                     <CardTitle className="text-xl">{feature.title}</CardTitle>
                   </CardHeader>
-                  <CardContent className="text-center">
+                  <CardContent className="text-center p-4 sm:p-6 pt-0">
                     <CardDescription>{feature.description}</CardDescription>
                   </CardContent>
                 </Card>
@@ -165,32 +165,32 @@ export default function LandingPage() {
                     Access the NomadX portal designed specifically for your needs.
                 </p>
             </div>
-            <div className="grid gap-8 lg:grid-cols-3">
-                <Card className="flex flex-col items-center text-center p-6 hover:shadow-2xl transition-shadow duration-300 animate-fade-in-up" style={{animationDelay: '600ms'}}>
+            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
+                <Card className="flex flex-col items-center text-center p-4 sm:p-6 hover:shadow-2xl transition-shadow duration-300 animate-fade-in-up" style={{animationDelay: '600ms'}}>
                     <Users className="h-12 w-12 text-primary mb-4"/>
                     <CardTitle className="mb-2 text-2xl">Customer Portal</CardTitle>
                     <CardDescription className="mb-6">Book rides, track your trips, and manage your account.</CardDescription>
-                    <Button asChild className="w-full max-w-xs group hover:shadow-lg">
+                    <Button asChild className="w-full max-w-xs group hover:shadow-lg mt-auto">
                         <Link href="/customer/auth/login">
                             Go to Customer Portal <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform"/>
                         </Link>
                     </Button>
                 </Card>
-                 <Card className="flex flex-col items-center text-center p-6 hover:shadow-2xl transition-shadow duration-300 animate-fade-in-up" style={{animationDelay: '750ms'}}>
+                 <Card className="flex flex-col items-center text-center p-4 sm:p-6 hover:shadow-2xl transition-shadow duration-300 animate-fade-in-up" style={{animationDelay: '750ms'}}>
                     <Building className="h-12 w-12 text-primary mb-4"/>
                     <CardTitle className="mb-2 text-2xl">Agency Portal</CardTitle>
                     <CardDescription className="mb-6">Manage your fleet, drivers, bookings, and leverage AI tools.</CardDescription>
-                     <Button asChild className="w-full max-w-xs group hover:shadow-lg">
+                     <Button asChild className="w-full max-w-xs group hover:shadow-lg mt-auto">
                         <Link href="/agency/auth/login">
                             Go to Agency Portal <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform"/>
                         </Link>
                     </Button>
                 </Card>
-                 <Card className="flex flex-col items-center text-center p-6 hover:shadow-2xl transition-shadow duration-300 animate-fade-in-up" style={{animationDelay: '900ms'}}>
+                 <Card className="flex flex-col items-center text-center p-4 sm:p-6 hover:shadow-2xl transition-shadow duration-300 animate-fade-in-up" style={{animationDelay: '900ms'}}>
                     <ShieldAlert className="h-12 w-12 text-primary mb-4"/>
                     <CardTitle className="mb-2 text-2xl">Admin Portal</CardTitle>
                     <CardDescription className="mb-6">Oversee platform operations, manage users, and access system settings.</CardDescription>
-                     <Button asChild className="w-full max-w-xs group hover:shadow-lg">
+                     <Button asChild className="w-full max-w-xs group hover:shadow-lg mt-auto">
                         <Link href="/admin/auth/login">
                            Go to Admin Portal <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform"/>
                         </Link>
