@@ -12,8 +12,10 @@ import {
   query,
   orderBy,
   where,
+  getDoc, // Import getDoc
 } from "firebase/firestore";
 import { auth } from "@/lib/firebase"; // Import auth for current user details
+import { addCustomerNotification } from "./notificationsService"; // Import notification service
 
 const BOOKINGS_COLLECTION = "bookings";
 
@@ -91,11 +93,16 @@ export const addBooking = async (bookingData: Omit<Booking, "id" | "customerName
 export const updateBooking = async (bookingId: string, bookingData: Partial<Omit<Booking, "id">>): Promise<void> => {
   const bookingRef = doc(db, BOOKINGS_COLLECTION, bookingId);
   const updateData: any = { ...bookingData };
-  if (bookingData.pickupDate) {
-    updateData.pickupDate = Timestamp.fromDate(new Date(bookingData.pickupDate));
+  if (bookingData.pickupDate && bookingData.pickupDate instanceof Date) {
+    updateData.pickupDate = Timestamp.fromDate(bookingData.pickupDate);
+  } else if (bookingData.pickupDate) { // Handle if it's already a string/number timestamp
+     updateData.pickupDate = Timestamp.fromDate(new Date(bookingData.pickupDate));
   }
-  if (bookingData.dropoffDate) {
-    updateData.dropoffDate = Timestamp.fromDate(new Date(bookingData.dropoffDate));
+
+  if (bookingData.dropoffDate && bookingData.dropoffDate instanceof Date) {
+    updateData.dropoffDate = Timestamp.fromDate(bookingData.dropoffDate);
+  } else if (bookingData.dropoffDate) {
+     updateData.dropoffDate = Timestamp.fromDate(new Date(bookingData.dropoffDate));
   }
   await updateDoc(bookingRef, updateData);
 };
@@ -110,4 +117,33 @@ export const deleteBooking = async (bookingId: string): Promise<void> => {
 export const updateBookingStatus = async (bookingId: string, status: Booking["status"]): Promise<void> => {
   const bookingRef = doc(db, BOOKINGS_COLLECTION, bookingId);
   await updateDoc(bookingRef, { status });
+
+  if (status === "Denied") {
+    try {
+      const bookingSnap = await getDoc(bookingRef);
+      if (bookingSnap.exists()) {
+        const bookingData = fromFirestore(bookingSnap); // Use our helper to convert
+        
+        if (bookingData.customerId) {
+          const pickupDateFormatted = bookingData.pickupDate 
+            ? new Date(bookingData.pickupDate).toLocaleDateString() 
+            : "the requested date";
+          
+          await addCustomerNotification(bookingData.customerId, {
+            title: "Booking Request Update",
+            description: `Unfortunately, your booking for ${bookingData.pickupLocation || 'your selected destination'} on ${pickupDateFormatted} could not be confirmed at this time. Please consider rescheduling or contact support.`,
+            type: "booking_denied", // Specific type for this scenario
+            link: "/customer/dashboard/my-bookings" 
+          });
+          console.log(`Customer notification sent for denied booking ${bookingId}`);
+        } else {
+          console.warn(`Booking ${bookingId} denied, but no customerId found to send notification.`);
+        }
+      }
+    } catch (error) {
+      console.error("Error sending notification for denied booking:", error);
+      // Do not let notification failure block the status update.
+      // In a production app, you might queue this or add more robust error handling.
+    }
+  }
 };
