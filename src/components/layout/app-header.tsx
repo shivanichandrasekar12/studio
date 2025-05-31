@@ -16,42 +16,44 @@ import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from "react";
 import type { NotificationItem, UserRole } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAgencyNotifications, markAgencyNotificationAsRead } from "@/lib/services/notificationsService"; // Assuming service exists
+import { getAgencyNotifications, markAgencyNotificationAsRead } from "@/lib/services/notificationsService"; 
+import type { User } from "firebase/auth"; // Import User type
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+
 
 interface AppHeaderProps {
   title: string;
   userRole: UserRole;
+  currentUser: User | null; // Add currentUser prop
 }
 
-export function AppHeader({ title, userRole }: AppHeaderProps) {
+export function AppHeader({ title, userRole, currentUser }: AppHeaderProps) {
   const { isMobile } = useSidebar();
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch notifications for the header - limited count
   const { data: headerNotifications = [], isLoading: isLoadingHeaderNotifications } = useQuery<NotificationItem[], Error>({
-    queryKey: ["headerNotifications", userRole], // Make queryKey role-specific
+    queryKey: ["headerNotifications", userRole], 
     queryFn: () => {
       if (userRole === 'agency') {
-        return getAgencyNotifications(5); // Fetch top 5 for agency
+        return getAgencyNotifications(5); 
       }
-      // Add similar logic for customer/admin if they have separate notification services/collections
-      return Promise.resolve([]); // Default to empty for other roles for now
+      return Promise.resolve([]); 
     },
-    enabled: !!userRole, // Only run if userRole is available
+    enabled: !!userRole && !!currentUser, // Only run if userRole and currentUser are available
   });
 
 
   const { mutate: markAsReadMutation } = useMutation({
-    mutationFn: markAgencyNotificationAsRead, // Assuming this service is specific or adapted
+    mutationFn: markAgencyNotificationAsRead, 
     onSuccess: (data, notificationId) => {
       queryClient.invalidateQueries({ queryKey: ["headerNotifications", userRole] });
-      queryClient.invalidateQueries({ queryKey: ["agencyNotifications"] }); // Invalidate full list if applicable
+      queryClient.invalidateQueries({ queryKey: ["agencyNotifications"] }); 
     }
   });
 
@@ -61,12 +63,22 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
   const baseDashboardPath = `/${userRole}/dashboard`;
   const baseAuthPath = `/${userRole}/auth/login`; 
 
-  const handleLogout = () => {
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    });
-    router.push(baseAuthPath);
+  const handleLogout = async () => {
+     try {
+      await signOut(auth);
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+      router.push(baseAuthPath);
+    } catch (error) {
+      console.error("Logout failed:", error);
+      toast({
+        title: "Logout Failed",
+        description: "An error occurred during logout. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSettingsClick = () => {
@@ -78,7 +90,7 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
   };
 
   const handleNotificationClick = (notification: NotificationItem) => {
-    if (!notification.read && userRole === 'agency') { // Adapt if other roles get notifications
+    if (!notification.read && userRole === 'agency') { 
       markAsReadMutation(notification.id);
     }
     toast({
@@ -95,6 +107,8 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
   };
 
   const getAvatarFallback = () => {
+    if (currentUser?.displayName) return currentUser.displayName.substring(0, 2).toUpperCase();
+    if (currentUser?.email) return currentUser.email.substring(0, 2).toUpperCase();
     if (userRole === "agency") return "AG";
     if (userRole === "customer") return "CU";
     if (userRole === "admin") return "AD";
@@ -102,9 +116,7 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
   }
 
   const getAvatarSrc = () => {
-     if (userRole === "admin") return "https://placehold.co/100x100.png?text=AD";
-     // For other roles, you might have specific logic or a default placeholder
-     return `https://placehold.co/40x40.png?text=${getAvatarFallback()}`;
+     return currentUser?.photoURL || `https://placehold.co/40x40.png?text=${getAvatarFallback()}`;
   }
 
 
@@ -187,7 +199,7 @@ export function AppHeader({ title, userRole }: AppHeaderProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>My Account ({userRole})</DropdownMenuLabel>
+            <DropdownMenuLabel>My Account ({currentUser?.displayName || currentUser?.email?.split('@')[0] || userRole})</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleProfileClick}>Profile</DropdownMenuItem>
             <DropdownMenuItem onClick={handleSettingsClick}>Settings</DropdownMenuItem>

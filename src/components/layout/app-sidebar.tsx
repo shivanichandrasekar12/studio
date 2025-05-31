@@ -33,9 +33,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { NavItem, UserRole } from "@/types";
 import { Separator } from "../ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import type { User } from "firebase/auth"; // Import User type
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 interface AppSidebarProps {
   userRole: UserRole;
+  currentUser: User | null; // Add currentUser prop
 }
 
 const getNavItems = (role: UserRole): NavItem[] => {
@@ -72,7 +76,7 @@ const getNavItems = (role: UserRole): NavItem[] => {
   return [];
 };
 
-export function AppSidebar({ userRole }: AppSidebarProps) {
+export function AppSidebar({ userRole, currentUser }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
@@ -82,15 +86,24 @@ export function AppSidebar({ userRole }: AppSidebarProps) {
   const baseDashboardPath = `/${userRole}/dashboard`;
   const baseAuthPath = `/${userRole}/auth`; 
 
-
   const isCollapsed = state === "collapsed" && !isMobile;
 
-  const handleLogout = () => {
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    });
-    router.push(`${baseAuthPath}/login`);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+      router.push(`${baseAuthPath}/login`);
+    } catch (error) {
+      console.error("Logout failed:", error);
+      toast({
+        title: "Logout Failed",
+        description: "An error occurred during logout. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSettingsClick = () => {
@@ -98,6 +111,8 @@ export function AppSidebar({ userRole }: AppSidebarProps) {
   };
   
   const getAvatarFallback = () => {
+    if (currentUser?.displayName) return currentUser.displayName.substring(0, 2).toUpperCase();
+    if (currentUser?.email) return currentUser.email.substring(0, 2).toUpperCase();
     if (userRole === "agency") return "AG";
     if (userRole === "customer") return "CU";
     if (userRole === "admin") return "AD";
@@ -105,19 +120,12 @@ export function AppSidebar({ userRole }: AppSidebarProps) {
   }
   
   const getUserEmail = () => {
-     if (userRole === "agency") return "agency@example.com";
-     if (userRole === "customer") return "customer@example.com";
-     if (userRole === "admin") return "admin@nomadx.com";
-     return "user@example.com";
+     return currentUser?.email || "user@example.com";
   }
 
   const getUserDisplayName = () => {
-     if (userRole === "agency") return "Agency Admin";
-     if (userRole === "customer") return "Customer User";
-     if (userRole === "admin") return "Platform Admin";
-     return "User";
+     return currentUser?.displayName || currentUser?.email?.split('@')[0] || (userRole.charAt(0).toUpperCase() + userRole.slice(1) + " User");
   }
-
 
   return (
     <Sidebar collapsible="icon">
@@ -157,13 +165,13 @@ export function AppSidebar({ userRole }: AppSidebarProps) {
         {!isCollapsed && <Separator className="my-2 bg-sidebar-border" />}
         <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : 'px-2 py-2'}`}>
           <Avatar className="h-9 w-9">
-            <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user avatar"/>
+            <AvatarImage src={currentUser?.photoURL || `https://placehold.co/100x100.png?text=${getAvatarFallback()}`} alt="User Avatar" data-ai-hint="user avatar"/>
             <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
           </Avatar>
           {!isCollapsed && (
-            <div className="flex flex-col">
-              <span className="text-sm font-medium text-sidebar-foreground">{getUserDisplayName()}</span>
-              <span className="text-xs text-muted-foreground">{getUserEmail()}</span>
+            <div className="flex flex-col overflow-hidden">
+              <span className="text-sm font-medium text-sidebar-foreground truncate" title={getUserDisplayName()}>{getUserDisplayName()}</span>
+              <span className="text-xs text-muted-foreground truncate" title={getUserEmail()}>{getUserEmail()}</span>
             </div>
           )}
         </div>
