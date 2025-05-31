@@ -66,21 +66,29 @@ export type NotificationItem = {
   read: boolean;
   link?: string;
   userId?: string; // For user-specific notifications
-  role?: UserRole; // For role-specific notifications
-  type?: 'booking' | 'booking_update' | 'booking_completed' | 'system' | 'reminder' | 'promotion' | string;
+  role?: UserRole; // For role-specific notifications for agency/admin or to tag customer notifs
+  type?: 'booking' | 'booking_update' | 'booking_completed' | 'system' | 'reminder' | 'promotion' | 'booking_denied' | string;
 };
 
 export type Review = {
   id: string;
   bookingId?: string; // Optional: Link to a specific booking
-  reviewerId?: string; // Optional: UID of the agency staff who logged the review, or customer UID if customer submitted
-  customerName: string; // Name of the customer who the review is about
+  reviewerId?: string; // UID of the user who wrote/submitted the review (customer or agency staff)
+  customerName: string; // Name of the customer the review is about or who wrote it
   agencyId?: string; // Optional: UID of the agency (if a multi-tenant platform or for filtering)
   rating: number; // e.g., 1-5
   title?: string;
   comment: string;
   createdAt: Date;
   avatarUrl?: string; // Avatar of the customer (if agency logs it) or reviewer
-  reviewType: 'customer_feedback' | 'driver_report' | 'agency_assessment' | 'user_submitted'; // 'customer_feedback' by agency, 'user_submitted' by customer
+  reviewType: 'customer_feedback' | 'driver_report' | 'agency_assessment' | 'user_submitted';
 };
 
+// This type is already in usersService.ts, but good to have in main types if used elsewhere.
+// Redefining or importing might be needed based on project structure.
+export interface UserProfileData {
+  uid: string;
+  email: string;
+  role: UserRole;
+  displayName?: string;
+}
