@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, CheckCircle, XCircle, Hourglass, AlertCircle, Loader2 } from "lucide-react"; // Added Hourglass
+import { CalendarDays, CheckCircle, XCircle, Hourglass, AlertCircle, Loader2, Route, Timer } from "lucide-react"; 
 import { useQuery } from "@tanstack/react-query";
 import { getBookings } from "@/lib/services/bookingsService";
 import type { Booking } from "@/types";
@@ -16,7 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 export default function AdminAllBookingsPage() {
   const { data: bookings = [], isLoading: isLoadingBookings, error: bookingsError } = useQuery<Booking[], Error>({
     queryKey: ["allPlatformBookings"],
-    queryFn: getBookings,
+    queryFn: getBookings, // Fetches all bookings as no agencyId is passed
   });
 
   const safeFormat = (dateInput: Date | string | undefined, formatString: string) => {
@@ -44,7 +44,7 @@ export default function AdminAllBookingsPage() {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error Fetching Bookings</AlertTitle>
-          <AlertDescription>{bookingsError.message}</AlertDescription>
+          <AlertDescription>{(bookingsError as Error).message}</AlertDescription>
         </Alert>
       </div>
     );
@@ -56,7 +56,7 @@ export default function AdminAllBookingsPage() {
         {/* Placeholder for future filter button or actions */}
       </PageHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6"> {/* Adjusted to lg:grid-cols-4 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center"><CalendarDays className="mr-2 h-5 w-5 text-primary"/>Bookings Today</CardTitle>
@@ -102,22 +102,22 @@ export default function AdminAllBookingsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Customer</TableHead>
-                  <TableHead>Pickup Date</TableHead>
-                  <TableHead>Pickup Location</TableHead>
-                  <TableHead>Dropoff Location</TableHead>
-                  <TableHead>Vehicle Type</TableHead>
+                  <TableHead>Pickup/Dropoff</TableHead>
+                  <TableHead>Route Details</TableHead>
+                  <TableHead>Vehicle</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Agency ID</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {[...Array(5)].map((_, i) => (
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-36" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-48" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -135,6 +135,7 @@ export default function AdminAllBookingsPage() {
                     <TableHead>Customer</TableHead>
                     <TableHead>Pickup</TableHead>
                     <TableHead>Drop-off</TableHead>
+                    <TableHead>Route Details</TableHead>
                     <TableHead>Vehicle</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Agency ID</TableHead> 
@@ -143,17 +144,30 @@ export default function AdminAllBookingsPage() {
                 <TableBody>
                   {bookings.map((booking) => (
                     <TableRow key={booking.id}>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium whitespace-nowrap">
                         {booking.customerName}
                         <div className="text-xs text-muted-foreground">{booking.customerEmail}</div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {safeFormat(booking.pickupDate, "PPp")}
                         <div className="text-xs text-muted-foreground">{booking.pickupLocation}</div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {safeFormat(booking.dropoffDate, "PPp")}
                         <div className="text-xs text-muted-foreground">{booking.dropoffLocation}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-xs">
+                            {booking.waypoints && booking.waypoints.length > 0 && (
+                                <div>Stops: {booking.waypoints.map(wp => wp.location).join(', ')}</div>
+                            )}
+                            {booking.estimatedDistance && (
+                                <span className="flex items-center"><Route className="mr-1 h-3 w-3 text-muted-foreground"/> {booking.estimatedDistance}</span>
+                            )}
+                            {booking.estimatedDuration && (
+                                <span className="flex items-center"><Timer className="mr-1 h-3 w-3 text-muted-foreground"/> {booking.estimatedDuration}</span>
+                            )}
+                        </div>
                       </TableCell>
                       <TableCell>{booking.vehicleType || "N/A"}</TableCell>
                       <TableCell>

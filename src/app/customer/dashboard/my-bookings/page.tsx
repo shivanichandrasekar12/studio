@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { Booking } from "@/types";
-import { ShoppingCart, CalendarDays, Loader2, AlertCircle, PlusCircle } from "lucide-react"; // Added PlusCircle
+import { ShoppingCart, CalendarDays, Loader2, AlertCircle, PlusCircle, Route, Timer } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -32,10 +32,10 @@ export default function MyBookingsPage() {
   const { data: bookings = [], isLoading, error } = useQuery<Booking[], Error>({
     queryKey: ["customerBookings", customerId],
     queryFn: () => {
-      if (!customerId) return Promise.resolve([]); // Don't fetch if no customerId
+      if (!customerId) return Promise.resolve([]); 
       return getCustomerBookings(customerId);
     },
-    enabled: !!customerId, // Only run query if customerId is available
+    enabled: !!customerId, 
   });
 
   const safeFormat = (dateInput: Date | string | undefined, formatString: string) => {
@@ -49,7 +49,7 @@ export default function MyBookingsPage() {
     }
   };
 
-  if (!currentUser && !auth.currentUser) { // Check auth.currentUser for initial load robustness
+  if (!currentUser && !auth.currentUser) { 
      return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -95,8 +95,8 @@ export default function MyBookingsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Date & Time</TableHead>
-                  <TableHead>Pickup</TableHead>
-                  <TableHead>Drop-off</TableHead>
+                  <TableHead>Route</TableHead>
+                  <TableHead>Estimate</TableHead>
                   <TableHead>Vehicle</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -105,8 +105,8 @@ export default function MyBookingsPage() {
                 {[...Array(3)].map((_, i) => (
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-28" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
                   </TableRow>
@@ -114,48 +114,67 @@ export default function MyBookingsPage() {
               </TableBody>
             </Table>
           ) : bookings.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date & Time</TableHead>
-                  <TableHead>Pickup</TableHead>
-                  <TableHead>Drop-off</TableHead>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {bookings.map((booking) => (
-                  <TableRow key={booking.id}>
-                    <TableCell>
-                      <div className="font-medium">{safeFormat(booking.pickupDate, "PP")}</div>
-                      <div className="text-xs text-muted-foreground">{safeFormat(booking.pickupDate, "p")}</div>
-                    </TableCell>
-                    <TableCell>{booking.pickupLocation}</TableCell>
-                    <TableCell>{booking.dropoffLocation}</TableCell>
-                    <TableCell>{booking.vehicleType || "N/A"}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          booking.status === "Confirmed" ? "default" :
-                          booking.status === "Completed" ? "secondary" :
-                          booking.status === "Pending" ? "outline" :
-                          "destructive"
-                        }
-                         className={
-                            booking.status === 'Confirmed' ? 'bg-green-500/20 text-green-700 border-green-500/30 hover:bg-green-500/30' :
-                            booking.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30 hover:bg-yellow-500/30' :
-                            booking.status === 'Denied' || booking.status === 'Cancelled' ? 'bg-red-500/20 text-red-700 border-red-500/30 hover:bg-red-500/30' :
-                            booking.status === 'Completed' ? 'bg-blue-500/20 text-blue-700 border-blue-500/30 hover:bg-blue-500/30' : ''
-                        }
-                      >
-                        {booking.status}
-                      </Badge>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date & Time</TableHead>
+                    <TableHead>Pickup</TableHead>
+                    <TableHead>Drop-off</TableHead>
+                    <TableHead>Stops</TableHead>
+                    <TableHead>Est. Route</TableHead>
+                    <TableHead>Vehicle</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {bookings.map((booking) => (
+                    <TableRow key={booking.id}>
+                      <TableCell>
+                        <div className="font-medium whitespace-nowrap">{safeFormat(booking.pickupDate, "PP")}</div>
+                        <div className="text-xs text-muted-foreground whitespace-nowrap">{safeFormat(booking.pickupDate, "p")}</div>
+                      </TableCell>
+                      <TableCell>{booking.pickupLocation}</TableCell>
+                      <TableCell>{booking.dropoffLocation}</TableCell>
+                      <TableCell className="text-xs">
+                        {booking.waypoints && booking.waypoints.length > 0 
+                            ? booking.waypoints.map(wp => wp.location).join(', ') 
+                            : "None"}
+                      </TableCell>
+                       <TableCell className="whitespace-nowrap">
+                        {booking.estimatedDistance && booking.estimatedDuration ? (
+                          <div className="text-xs">
+                            <span className="flex items-center"><Route className="mr-1 h-3 w-3 text-muted-foreground"/> {booking.estimatedDistance}</span>
+                            <span className="flex items-center"><Timer className="mr-1 h-3 w-3 text-muted-foreground"/> {booking.estimatedDuration}</span>
+                          </div>
+                        ) : (
+                          "N/A"
+                        )}
+                      </TableCell>
+                      <TableCell>{booking.vehicleType || "N/A"}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            booking.status === "Confirmed" ? "default" :
+                            booking.status === "Completed" ? "secondary" :
+                            booking.status === "Pending" ? "outline" :
+                            "destructive"
+                          }
+                           className={
+                              booking.status === 'Confirmed' ? 'bg-green-500/20 text-green-700 border-green-500/30 hover:bg-green-500/30' :
+                              booking.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30 hover:bg-yellow-500/30' :
+                              booking.status === 'Denied' || booking.status === 'Cancelled' ? 'bg-red-500/20 text-red-700 border-red-500/30 hover:bg-red-500/30' :
+                              booking.status === 'Completed' ? 'bg-blue-500/20 text-blue-700 border-blue-500/30 hover:bg-blue-500/30' : ''
+                          }
+                        >
+                          {booking.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <div className="text-center py-10">
               <CalendarDays className="mx-auto h-12 w-12 text-muted-foreground mb-4" />

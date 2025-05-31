@@ -1,6 +1,6 @@
 
 import { db } from "@/lib/firebase";
-import type { Booking } from "@/types";
+import type { Booking, Waypoint } from "@/types";
 import {
   collection,
   addDoc,
@@ -27,6 +27,7 @@ const fromFirestore = (docSnapshot: any): Booking => {
     id: docSnapshot.id,
     pickupDate: (data.pickupDate as Timestamp)?.toDate(),
     dropoffDate: (data.dropoffDate as Timestamp)?.toDate(),
+    // waypoints are already stored in the correct format (array of objects)
   } as Booking;
 };
 
@@ -75,51 +76,49 @@ export const addBooking = async (
   bookingData: Omit<Booking, "id" | "customerName" | "customerEmail" | "customerPhone"> & { customerId?: string; agencyId?: string }
 ): Promise<string> => {
   const currentUser = auth.currentUser;
-  let customerDetailsToAdd = {};
+  let customerDetailsToAdd: Partial<Pick<Booking, "customerName" | "customerEmail" | "customerPhone">> = {};
 
-  // If bookingData includes customerId, it implies it's for a specific customer
-  // If not, and a customer is logged in, it's their booking.
-  // If an agency is logged in and no customerId, it's an agency-managed booking (potentially anonymous customer).
   const effectiveCustomerId = bookingData.customerId || (currentUser?.uid && bookingData.agencyId !== currentUser.uid ? currentUser.uid : undefined);
 
-  if (effectiveCustomerId) {
-    // Attempt to fetch customer details if UID is known
-    // This part can be expanded if you have a users collection with displayNames etc.
-    // For now, we'll use placeholder or rely on form input for name/email/phone.
+  // If booking is by a customer, get their details from auth
+  if (effectiveCustomerId && currentUser && currentUser.uid === effectiveCustomerId) {
+    customerDetailsToAdd = {
+      customerName: currentUser.displayName || "Customer",
+      customerEmail: currentUser.email || "N/A",
+      customerPhone: currentUser.phoneNumber || "N/A", 
+    };
+  } else if (bookingData.agencyId && currentUser && currentUser.uid === bookingData.agencyId) {
+    // Agency is creating booking, customer details should come from bookingData if provided
+     customerDetailsToAdd = {
+      customerName: bookingData.customerName || "Walk-in Customer",
+      customerEmail: bookingData.customerEmail || "N/A",
+      customerPhone: bookingData.customerPhone || "N/A",
+    };
+  } else {
+     customerDetailsToAdd = {
+      customerName: "Walk-in Customer",
+      customerEmail: "N/A",
+      customerPhone: "N/A",
+    };
   }
   
-  // Prioritize details from bookingData (e.g. entered by agency in form)
-  customerDetailsToAdd = {
-    customerName: bookingData.customerName || (effectiveCustomerId ? "Registered Customer" : "Walk-in Customer"),
-    customerEmail: bookingData.customerEmail || (effectiveCustomerId ? "customer@example.com" : "N/A"),
-    customerPhone: bookingData.customerPhone || (effectiveCustomerId ? "N/A" : "N/A"),
-  };
-
-
   const newBookingData: any = {
-    ...bookingData, // includes pickupLocation, dropoffLocation, vehicleType, notes, status etc.
+    ...bookingData, 
     ...customerDetailsToAdd,
     pickupDate: Timestamp.fromDate(new Date(bookingData.pickupDate)),
     dropoffDate: Timestamp.fromDate(new Date(bookingData.dropoffDate)),
     status: bookingData.status || "Pending",
+    passengers: bookingData.passengers || 1,
+    // waypoints, estimatedDistance, estimatedDuration will be part of bookingData
   };
   
   if (effectiveCustomerId) {
     newBookingData.customerId = effectiveCustomerId;
   }
 
-  // If an agencyId is explicitly passed (e.g., agency creating booking), use it.
-  // Or if the current user is an agency (and not creating for a *different* agency), set them as agencyId.
   if (bookingData.agencyId) {
     newBookingData.agencyId = bookingData.agencyId;
-  } else if (currentUser) {
-    // Potentially check user role here if agencies can also be customers.
-    // For simplicity, if not bookingData.agencyId, and currentUser exists, assume it might be an agency.
-    // This logic should be tightened based on user roles.
-    // If an agency user is creating the booking, their UID should be the agencyId.
-    // The UI (AgencyBookingsPage) already adds agencyId from currentUser.uid.
   }
-
 
   const docRef = await addDoc(collection(db, BOOKINGS_COLLECTION), newBookingData);
   return docRef.id;
@@ -141,6 +140,7 @@ export const updateBooking = async (bookingId: string, bookingData: Partial<Omit
   } else if (bookingData.dropoffDate) {
      updateData.dropoffDate = Timestamp.fromDate(new Date(bookingData.dropoffDate));
   }
+  // waypoints, estimatedDistance, estimatedDuration are updated directly if present in bookingData
   await updateDoc(bookingRef, updateData);
 };
 
@@ -155,6 +155,7 @@ export const updateBookingStatus = async (bookingId: string, status: Booking["st
   const bookingRef = doc(db, BOOKINGS_COLLECTION, bookingId);
   await updateDoc(bookingRef, { status });
 
+  // Send notification if booking is denied
   if (status === "Denied") {
     try {
       const bookingSnap = await getDoc(bookingRef);
@@ -182,4 +183,3 @@ export const updateBookingStatus = async (bookingId: string, status: Booking["st
     }
   }
 };
-

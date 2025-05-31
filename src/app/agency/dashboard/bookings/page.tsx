@@ -9,8 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import type { Booking } from "@/types";
-import { PlusCircle, MoreHorizontal, CheckCircle, XCircle, Edit, Trash2, Loader2, AlertCircle } from "lucide-react";
+import type { Booking, Waypoint } from "@/types";
+import { PlusCircle, MoreHorizontal, CheckCircle, XCircle, Edit, Trash2, Loader2, AlertCircle, Route, Timer } from "lucide-react";
 import { useState, type FormEvent, useEffect } from "react";
 import {
   Dialog,
@@ -33,14 +33,14 @@ import { getBookings, addBooking, updateBooking, deleteBooking, updateBookingSta
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { auth } from "@/lib/firebase"; // Import auth
-import type { User } from "firebase/auth"; // Import User type
+import { auth } from "@/lib/firebase"; 
+import type { User } from "firebase/auth"; 
 
 
 export default function AgencyBookingsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser); // Get current user
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser); 
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -51,7 +51,7 @@ export default function AgencyBookingsPage() {
 
 
   const { data: bookings = [], isLoading: isLoadingBookings, error: bookingsError } = useQuery<Booking[], Error>({
-    queryKey: ["bookings", currentUser?.uid], // Scope bookings to current agency user
+    queryKey: ["bookings", currentUser?.uid], 
     queryFn: () => {
       if (!currentUser?.uid) return Promise.resolve([]);
       return getBookings(currentUser.uid);
@@ -74,7 +74,11 @@ export default function AgencyBookingsPage() {
   const [vehicleType, setVehicleType] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<Booking["status"]>("Pending");
-  const [formCustomerId, setFormCustomerId] = useState<string | undefined>(undefined); // For agency creating booking
+  const [formCustomerId, setFormCustomerId] = useState<string | undefined>(undefined);
+  const [formWaypoints, setFormWaypoints] = useState<string[]>([]);
+  const [formEstimatedDistance, setFormEstimatedDistance] = useState<string | undefined>("");
+  const [formEstimatedDuration, setFormEstimatedDuration] = useState<string | undefined>("");
+
 
   const { mutate: addBookingMutation, isPending: isAddingBooking } = useMutation({
     mutationFn: addBooking,
@@ -86,7 +90,7 @@ export default function AgencyBookingsPage() {
       resetForm();
     },
     onError: (error) => {
-      toast({ title: "Error Adding Booking", description: error.message, variant: "destructive" });
+      toast({ title: "Error Adding Booking", description: (error as Error).message, variant: "destructive" });
     },
   });
 
@@ -100,7 +104,7 @@ export default function AgencyBookingsPage() {
       resetForm();
     },
     onError: (error) => {
-      toast({ title: "Error Updating Booking", description: error.message, variant: "destructive" });
+      toast({ title: "Error Updating Booking", description: (error as Error).message, variant: "destructive" });
     },
   });
 
@@ -112,7 +116,7 @@ export default function AgencyBookingsPage() {
       toast({ title: "Booking Deleted", description: "The booking has been successfully deleted." });
     },
     onError: (error) => {
-      toast({ title: "Error Deleting Booking", description: error.message, variant: "destructive" });
+      toast({ title: "Error Deleting Booking", description: (error as Error).message, variant: "destructive" });
     },
   });
   
@@ -124,7 +128,7 @@ export default function AgencyBookingsPage() {
       toast({ title: "Booking Status Updated", description: "The booking status has been changed." });
     },
     onError: (error) => {
-      toast({ title: "Error Updating Status", description: error.message, variant: "destructive" });
+      toast({ title: "Error Updating Status", description: (error as Error).message, variant: "destructive" });
     },
   });
 
@@ -141,6 +145,9 @@ export default function AgencyBookingsPage() {
     setNotes("");
     setStatus("Pending");
     setFormCustomerId(undefined);
+    setFormWaypoints([]);
+    setFormEstimatedDistance("");
+    setFormEstimatedDuration("");
   }
 
   const handleOpenForm = (booking?: Booking) => {
@@ -157,6 +164,9 @@ export default function AgencyBookingsPage() {
       setNotes(booking.notes || "");
       setStatus(booking.status);
       setFormCustomerId(booking.customerId);
+      setFormWaypoints(booking.waypoints?.map(wp => wp.location) || []);
+      setFormEstimatedDistance(booking.estimatedDistance || "");
+      setFormEstimatedDuration(booking.estimatedDuration || "");
     } else {
       resetForm();
     }
@@ -174,63 +184,28 @@ export default function AgencyBookingsPage() {
       return;
     }
 
-    // For agency created bookings, customerId can be optional if not tied to a registered customer immediately.
-    // However, our addBooking service currently expects a customerId string.
-    // For now, let's use a placeholder or ensure the form allows for it.
-    // A better approach might be to have a separate service for agency-initiated bookings
-    // or make customerId truly optional in the service based on who is calling.
-    // For this fix, we'll make it so that the agency ID is definitely set.
-    // The `formCustomerId` state field can be used if agency is booking for a specific existing customer.
-    // If `formCustomerId` is not set, the booking might be considered more "generic" or for a walk-in.
-    // The `addBooking` service needs to handle `customerId` being potentially undefined.
-    // For now, we assume `formCustomerId` might be undefined and rely on `customerName`, `customerEmail` for details.
-    // A more robust solution would involve a customer selection mechanism or clearer handling of anonymous bookings.
+    const waypointsToSave: Waypoint[] = formWaypoints.map(loc => ({ location: loc, stopover: true }));
 
     const bookingPayload: Omit<Booking, "id"> & { agencyId: string; customerId?: string } = {
       customerName, customerEmail, customerPhone,
       pickupDate, dropoffDate, pickupLocation, dropoffLocation,
+      waypoints: waypointsToSave.length > 0 ? waypointsToSave : undefined,
+      estimatedDistance: formEstimatedDistance || undefined,
+      estimatedDuration: formEstimatedDuration || undefined,
       vehicleType, status, notes,
-      agencyId: currentUser.uid, // CRITICAL: Add agencyId here
-      customerId: formCustomerId, // This could be undefined if not booking for a specific registered customer
+      agencyId: currentUser.uid, 
+      customerId: formCustomerId, 
+      passengers: 1, // Default or add a field for this
     };
 
     if (editingBooking) {
-      // Ensure agencyId is not lost during update if it was there
       const updatePayload = { ...bookingPayload };
       if (editingBooking.agencyId && !updatePayload.agencyId) {
         updatePayload.agencyId = editingBooking.agencyId;
       }
       updateBookingMutation({id: editingBooking.id, data: updatePayload});
     } else {
-      // The addBooking service expects a `customerId: string`.
-      // This is a temporary placeholder. Ideally, the form should allow searching for an existing customer
-      // or creating a temporary customer profile.
-      if (!bookingPayload.customerId) {
-         // If no specific customer is selected, create a placeholder ID or handle appropriately in service.
-         // For now, we'll create a pseudo-ID, though this isn't ideal for tracking.
-         // Or, the service should be adjusted to allow truly optional customerId.
-         // Let's assume for now the `addBooking` service can handle customerId: "TEMPORARY_CUSTOMER"
-         // Or, we make it mandatory in the form for agencies to provide some customer identifier.
-         // For this example, we'll assume formCustomerId IS the string, or a placeholder.
-         // This part of the logic (customer identification by agency) needs more thought.
-         // For the agencyId to be set, this is the most direct fix:
-         // bookingPayload.customerId = bookingPayload.customerId || `anon-${Date.now()}`; 
-         // Let's remove the explicit customerId requirement from the payload sent to addBooking if it's not set,
-         // and allow the service to handle it, but ensuring agencyId IS set.
-         const servicePayload: any = { ...bookingPayload };
-         if (!servicePayload.customerId) {
-            // The service needs to be able to handle a booking without a *registered* customerId
-            // If the service expects customerId, then the UI must provide it.
-            // For now, we ensure agencyId is set, and the customerId might be an issue for the service call
-            // if it's strictly required and `formCustomerId` is null.
-            // To make it work with current addBooking, a customerId must be passed.
-            // This means agency form *must* collect or assign one.
-            // Let's add a field for customerId in the form if it's not an edit.
-         }
-         addBookingMutation(servicePayload);
-      } else {
-        addBookingMutation(bookingPayload);
-      }
+      addBookingMutation(bookingPayload);
     }
   };
 
@@ -254,7 +229,6 @@ export default function AgencyBookingsPage() {
 
   const isMutating = isAddingBooking || isUpdatingBooking;
 
-  // Handle case where dates might be invalid
   const safeFormat = (date: Date | undefined | string, formatString: string) => {
     if (!date) return "N/A";
     try {
@@ -277,7 +251,7 @@ export default function AgencyBookingsPage() {
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Error Fetching Bookings</AlertTitle>
-        <AlertDescription>{bookingsError.message}</AlertDescription>
+        <AlertDescription>{(bookingsError as Error).message}</AlertDescription>
       </Alert>
     );
   }
@@ -366,7 +340,8 @@ export default function AgencyBookingsPage() {
                   <TableRow>
                     <TableHead>Customer</TableHead>
                     <TableHead>Dates</TableHead>
-                    <TableHead>Vehicle Type</TableHead>
+                    <TableHead>Route Info</TableHead>
+                    <TableHead>Vehicle</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -376,6 +351,7 @@ export default function AgencyBookingsPage() {
                     <TableRow key={i}>
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-28" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                       <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
@@ -384,81 +360,98 @@ export default function AgencyBookingsPage() {
                 </TableBody>
             </Table>
           ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Customer</TableHead>
-                <TableHead>Dates</TableHead>
-                <TableHead>Vehicle Type</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {bookings.map((booking) => (
-                <TableRow key={booking.id}>
-                  <TableCell className="font-medium">{booking.customerName}</TableCell>
-                  <TableCell>
-                    {safeFormat(booking.pickupDate, "PPp")} - <br/> {safeFormat(booking.dropoffDate, "PPp")}
-                  </TableCell>
-                  <TableCell>{booking.vehicleType}</TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant={booking.status === 'Confirmed' ? 'default' : booking.status === 'Pending' ? 'secondary' : 'destructive'}
-                      className={
-                        booking.status === 'Confirmed' ? 'bg-green-500/20 text-green-700 border-green-500/30 hover:bg-green-500/30' :
-                        booking.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30 hover:bg-yellow-500/30' :
-                        booking.status === 'Denied' || booking.status === 'Cancelled' ? 'bg-red-500/20 text-red-700 border-red-500/30 hover:bg-red-500/30' : 
-                        'bg-blue-500/20 text-blue-700 border-blue-500/30 hover:bg-blue-500/30' // Completed
-                      }
-                    >
-                      {booking.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleOpenForm(booking)}>
-                          <Edit className="mr-2 h-4 w-4" /> Edit
-                        </DropdownMenuItem>
-                        {(booking.status === "Pending" || booking.status === "Denied") && (
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(booking.id, "Confirmed")} className="text-green-600 focus:text-green-600">
-                              <CheckCircle className="mr-2 h-4 w-4" /> Confirm
-                            </DropdownMenuItem>
-                        )}
-                        {booking.status === "Pending" && (
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(booking.id, "Denied")} className="text-red-600 focus:text-red-600">
-                              <XCircle className="mr-2 h-4 w-4" /> Deny
-                            </DropdownMenuItem>
-                        )}
-                         {booking.status === "Confirmed" && (
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(booking.id, "Completed")} className="text-blue-600 focus:text-blue-600">
-                              <CheckCircle className="mr-2 h-4 w-4" /> Mark as Completed
-                            </DropdownMenuItem>
-                        )}
-                         {(booking.status === "Confirmed" || booking.status === "Pending") && (
-                            <DropdownMenuItem onClick={() => handleUpdateStatus(booking.id, "Cancelled")} className="text-orange-600 focus:text-orange-600">
-                              <XCircle className="mr-2 h-4 w-4" /> Cancel Booking
-                            </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50" onClick={() => handleDelete(booking.id)}>
-                           <Trash2 className="mr-2 h-4 w-4" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Dates</TableHead>
+                  <TableHead>Route Info</TableHead>
+                  <TableHead>Vehicle</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {bookings.map((booking) => (
+                  <TableRow key={booking.id}>
+                    <TableCell className="font-medium">{booking.customerName}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {safeFormat(booking.pickupDate, "PPp")} - <br/> {safeFormat(booking.dropoffDate, "PPp")}
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs">
+                        {booking.pickupLocation} to {booking.dropoffLocation}
+                        {booking.waypoints && booking.waypoints.length > 0 && (
+                          <div className="text-muted-foreground">Stops: {booking.waypoints.map(wp => wp.location).join(', ')}</div>
+                        )}
+                        {booking.estimatedDistance && (
+                           <span className="flex items-center text-muted-foreground"><Route className="mr-1 h-3 w-3"/> {booking.estimatedDistance}</span>
+                        )}
+                        {booking.estimatedDuration && (
+                           <span className="flex items-center text-muted-foreground"><Timer className="mr-1 h-3 w-3"/> {booking.estimatedDuration}</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{booking.vehicleType}</TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={booking.status === 'Confirmed' ? 'default' : booking.status === 'Pending' ? 'secondary' : 'destructive'}
+                        className={
+                          booking.status === 'Confirmed' ? 'bg-green-500/20 text-green-700 border-green-500/30 hover:bg-green-500/30' :
+                          booking.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30 hover:bg-yellow-500/30' :
+                          booking.status === 'Denied' || booking.status === 'Cancelled' ? 'bg-red-500/20 text-red-700 border-red-500/30 hover:bg-red-500/30' : 
+                          'bg-blue-500/20 text-blue-700 border-blue-500/30 hover:bg-blue-500/30' // Completed
+                        }
+                      >
+                        {booking.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleOpenForm(booking)}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit
+                          </DropdownMenuItem>
+                          {(booking.status === "Pending" || booking.status === "Denied") && (
+                              <DropdownMenuItem onClick={() => handleUpdateStatus(booking.id, "Confirmed")} className="text-green-600 focus:text-green-600">
+                                <CheckCircle className="mr-2 h-4 w-4" /> Confirm
+                              </DropdownMenuItem>
+                          )}
+                          {booking.status === "Pending" && (
+                              <DropdownMenuItem onClick={() => handleUpdateStatus(booking.id, "Denied")} className="text-red-600 focus:text-red-600">
+                                <XCircle className="mr-2 h-4 w-4" /> Deny
+                              </DropdownMenuItem>
+                          )}
+                           {booking.status === "Confirmed" && (
+                              <DropdownMenuItem onClick={() => handleUpdateStatus(booking.id, "Completed")} className="text-blue-600 focus:text-blue-600">
+                                <CheckCircle className="mr-2 h-4 w-4" /> Mark as Completed
+                              </DropdownMenuItem>
+                          )}
+                           {(booking.status === "Confirmed" || booking.status === "Pending") && (
+                              <DropdownMenuItem onClick={() => handleUpdateStatus(booking.id, "Cancelled")} className="text-orange-600 focus:text-orange-600">
+                                <XCircle className="mr-2 h-4 w-4" /> Cancel Booking
+                              </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50" onClick={() => handleDelete(booking.id)}>
+                             <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
           )}
         </CardContent>
       </Card>
@@ -485,9 +478,9 @@ export default function AgencyBookingsPage() {
                 <Label htmlFor="customerPhone" className="text-right">Phone</Label>
                 <Input id="customerPhone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="col-span-3" required />
               </div>
-              {!editingBooking && ( // Only show Customer ID field if creating new, and it's optional
+              {!editingBooking && ( 
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="formCustomerId" className="text-right">Customer ID (Optional)</Label>
+                  <Label htmlFor="formCustomerId" className="text-right">Customer ID (Opt)</Label>
                   <Input id="formCustomerId" value={formCustomerId || ""} onChange={(e) => setFormCustomerId(e.target.value)} className="col-span-3" placeholder="Existing Customer UID"/>
                 </div>
               )}
@@ -542,6 +535,20 @@ export default function AgencyBookingsPage() {
                 <Label htmlFor="dropoffLocation" className="text-right">Dropoff Location</Label>
                 <Input id="dropoffLocation" value={dropoffLocation} onChange={(e) => setDropoffLocation(e.target.value)} className="col-span-3" required />
               </div>
+                {/* Waypoints, Distance, Duration - for Agency manual entry/override */}
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="formWaypoints" className="text-right">Stops (comma sep.)</Label>
+                    <Input id="formWaypoints" value={formWaypoints.join(", ")} onChange={(e) => setFormWaypoints(e.target.value.split(",").map(s => s.trim()))} className="col-span-3" placeholder="Stop 1, Stop 2" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="formEstimatedDistance" className="text-right">Est. Distance</Label>
+                    <Input id="formEstimatedDistance" value={formEstimatedDistance} onChange={(e) => setFormEstimatedDistance(e.target.value)} className="col-span-3" placeholder="e.g., 15 km" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="formEstimatedDuration" className="text-right">Est. Duration</Label>
+                    <Input id="formEstimatedDuration" value={formEstimatedDuration} onChange={(e) => setFormEstimatedDuration(e.target.value)} className="col-span-3" placeholder="e.g., 30 mins" />
+                </div>
+
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="vehicleType" className="text-right">Vehicle Type</Label>
                 <Input id="vehicleType" value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} className="col-span-3" placeholder="e.g., Sedan, SUV" />
@@ -579,4 +586,3 @@ export default function AgencyBookingsPage() {
     </>
   );
 }
-
