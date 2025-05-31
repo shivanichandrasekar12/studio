@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { Booking } from "@/types";
-import { ShoppingCart, CalendarDays, Loader2, AlertCircle } from "lucide-react";
+import { ShoppingCart, CalendarDays, Loader2, AlertCircle, PlusCircle } from "lucide-react"; // Added PlusCircle
 import { format } from "date-fns";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -74,7 +74,13 @@ export default function MyBookingsPage() {
       <PageHeader
         title="My Bookings"
         description="View your past, current, and upcoming ride bookings."
-      />
+      >
+        <Button asChild>
+          <Link href="/customer/dashboard/book-new">
+            <PlusCircle className="mr-2 h-4 w-4" /> Book New Ride
+          </Link>
+        </Button>
+      </PageHeader>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center"><ShoppingCart className="mr-2 h-5 w-5 text-primary" />Booking History</CardTitle>
