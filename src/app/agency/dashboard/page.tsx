@@ -28,43 +28,77 @@ export default function AgencyDashboardOverviewPage() {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setCurrentUser(user);
+      console.log("AgencyDashboard: Current user state updated:", user?.uid);
     });
     return () => unsubscribe();
   }, []);
 
   const agencyId = currentUser?.uid;
+  
+  useEffect(() => {
+    console.log("AgencyDashboard: agencyId used for queries:", agencyId);
+  }, [agencyId]);
 
   const { data: bookingsData, isLoading: isLoadingBookings, error: bookingsError } = useQuery<Booking[], Error>({
-    queryKey: ["agencyBookingsDashboard", agencyId], // Scoped query key
+    queryKey: ["agencyBookingsDashboard", agencyId], 
     queryFn: () => {
-      if (!agencyId) return Promise.resolve([]);
-      return getBookings(agencyId); // Pass agencyId to fetch agency-specific bookings
+      if (!agencyId) {
+        console.log("AgencyDashboard: Skipping bookings fetch, no agencyId");
+        return Promise.resolve([]);
+      }
+      console.log(`AgencyDashboard: Fetching bookings for agencyId: ${agencyId}`);
+      return getBookings(agencyId); 
     },
     enabled: !!agencyId,
+    onSuccess: (data) => {
+      console.log("AgencyDashboard: Bookings fetched successfully:", data);
+    },
+    onError: (error) => {
+      console.error("AgencyDashboard: Error fetching bookings:", error);
+    }
   });
 
   const { data: vehicles = [], isLoading: isLoadingVehicles, error: vehiclesError } = useQuery<Vehicle[], Error>({
     queryKey: ["vehicles", agencyId],
     queryFn: () => {
-      if (!agencyId) return Promise.resolve([]);
+      if (!agencyId) {
+        console.log("AgencyDashboard: Skipping vehicles fetch, no agencyId");
+        return Promise.resolve([]);
+      }
+      console.log(`AgencyDashboard: Fetching vehicles for agencyId: ${agencyId}`);
       return getVehicles(agencyId);
     },
     enabled: !!agencyId,
+    onSuccess: (data) => {
+      console.log("AgencyDashboard: Vehicles fetched successfully:", data);
+    },
+    onError: (error) => {
+      console.error("AgencyDashboard: Error fetching vehicles:", error);
+    }
   });
 
   const { data: employees = [], isLoading: isLoadingEmployees, error: employeesError } = useQuery<Employee[], Error>({
     queryKey: ["employees", agencyId],
     queryFn: () => {
-      if (!agencyId) return Promise.resolve([]);
+      if (!agencyId) {
+        console.log("AgencyDashboard: Skipping employees fetch, no agencyId");
+        return Promise.resolve([]);
+      }
+      console.log(`AgencyDashboard: Fetching employees for agencyId: ${agencyId}`);
       return getEmployees(agencyId);
     },
     enabled: !!agencyId,
+    onSuccess: (data) => {
+      console.log("AgencyDashboard: Employees fetched successfully:", data);
+    },
+    onError: (error) => {
+      console.error("AgencyDashboard: Error fetching employees:", error);
+    }
   });
 
   const upcomingBookings = (bookingsData || [])
     .filter(b => {
         try {
-            // Ensure pickupDate is valid and can be converted to Date
             const pickupDate = b.pickupDate instanceof Date ? b.pickupDate : new Date(b.pickupDate);
             if (isNaN(pickupDate.getTime())) return false;
             return pickupDate >= new Date() && (b.status === "Pending" || b.status === "Confirmed");
@@ -76,7 +110,7 @@ export default function AgencyDashboardOverviewPage() {
         try {
             const dateA = a.pickupDate instanceof Date ? a.pickupDate : new Date(a.pickupDate);
             const dateB = b.pickupDate instanceof Date ? b.pickupDate : new Date(b.pickupDate);
-            if (isNaN(dateA.getTime())) return 1; // Invalid dates sort last
+            if (isNaN(dateA.getTime())) return 1; 
             if (isNaN(dateB.getTime())) return -1;
             return dateA.getTime() - dateB.getTime();
         } catch (e) {
@@ -105,11 +139,11 @@ export default function AgencyDashboardOverviewPage() {
       title: "Available Vehicles", 
       value: isLoadingVehicles ? "..." : vehicles.filter(v => v.status === 'Available').length.toString(), 
       icon: Truck, 
-      trend: isLoadingVehicles ? "" : `${vehicles.filter(v => v.status !== 'Available').length} in use/maintenance`, 
+      trend: isLoadingVehicles ? "" : `${vehicles.length} total, ${vehicles.filter(v => v.status !== 'Available').length} in use/maintenance`, 
       actionLabel: "Manage Vehicles", 
       actionHref: "/agency/dashboard/vehicles" 
     },
-    { title: "Monthly Revenue", value: "$0", icon: DollarSign, trend: "Feature coming soon" }, // Placeholder
+    { title: "Monthly Revenue", value: "$0", icon: DollarSign, trend: "Feature coming soon" }, 
   ];
   
   const safeFormat = (dateInput: Date | string | undefined, formatString: string) => {
