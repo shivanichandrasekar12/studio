@@ -35,10 +35,32 @@ export default function CustomerDashboardPage() {
       return getCustomerBookings(customerId);
     },
     enabled: !!customerId,
-    select: (data) => data
-      .filter(b => new Date(b.pickupDate) >= new Date() && (b.status === "Pending" || b.status === "Confirmed"))
-      .sort((a, b) => new Date(a.pickupDate).getTime() - new Date(b.pickupDate).getTime())
-      .slice(0, 3), // Show up to 3 upcoming bookings
+    select: (data) => {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0); // Set to midnight today
+
+      return data
+        .filter(b => {
+          // Ensure pickupDate exists and is a valid Date object
+          if (!(b.pickupDate instanceof Date) || isNaN(b.pickupDate.getTime())) {
+            return false;
+          }
+          // Check if the booking is on or after the start of today and has a valid status
+          return b.pickupDate >= startOfToday &&
+                 (b.status === "Pending" || b.status === "Confirmed");
+        })
+        .sort((a, b) => {
+          // Robust sorting for pickupDate
+          const timeA = (a.pickupDate instanceof Date && !isNaN(a.pickupDate.getTime())) ? a.pickupDate.getTime() : Infinity;
+          const timeB = (b.pickupDate instanceof Date && !isNaN(b.pickupDate.getTime())) ? b.pickupDate.getTime() : Infinity;
+          
+          if (timeA === Infinity && timeB === Infinity) return 0;
+          if (timeA === Infinity) return 1; // Invalid dates go to the end
+          if (timeB === Infinity) return -1;
+          return timeA - timeB; // Sort ascending by date
+        })
+        .slice(0, 3); // Show up to 3 upcoming bookings
+    }
   });
 
   const { data: notifications = [], isLoading: isLoadingNotifications, error: notificationsError } = useQuery<NotificationItem[], Error>({
@@ -92,6 +114,7 @@ export default function CustomerDashboardPage() {
               <div className="space-y-2">
                 <Skeleton className="h-6 w-full rounded" />
                 <Skeleton className="h-6 w-3/4 rounded" />
+                <Skeleton className="h-6 w-1/2 rounded" />
               </div>
             ) : bookings.length > 0 ? (
               <ul className="space-y-3">
@@ -123,6 +146,7 @@ export default function CustomerDashboardPage() {
                <div className="space-y-2">
                 <Skeleton className="h-5 w-full rounded" />
                 <Skeleton className="h-5 w-5/6 rounded" />
+                <Skeleton className="h-5 w-3/4 rounded" />
               </div>
             ) : notifications.length > 0 ? (
               <ul className="space-y-2">
