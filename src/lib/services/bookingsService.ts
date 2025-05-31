@@ -12,10 +12,10 @@ import {
   query,
   orderBy,
   where,
-  getDoc, // Import getDoc
+  getDoc, 
 } from "firebase/firestore";
-import { auth } from "@/lib/firebase"; // Import auth for current user details
-import { addCustomerNotification } from "./notificationsService"; // Import notification service
+import { auth } from "@/lib/firebase"; 
+import { addCustomerNotification } from "./notificationsService"; 
 
 const BOOKINGS_COLLECTION = "bookings";
 
@@ -27,13 +27,25 @@ const fromFirestore = (docSnapshot: any): Booking => {
     id: docSnapshot.id,
     pickupDate: (data.pickupDate as Timestamp)?.toDate(),
     dropoffDate: (data.dropoffDate as Timestamp)?.toDate(),
-    // Ensure related date fields are converted if added in future
   } as Booking;
 };
 
-// Get all bookings (primarily for agency/admin use)
-export const getBookings = async (): Promise<Booking[]> => {
-  const q = query(collection(db, BOOKINGS_COLLECTION), orderBy("pickupDate", "desc"));
+// Get bookings. If agencyId is provided, filter for that agency.
+// Otherwise (e.g., for admin), get all bookings.
+export const getBookings = async (agencyId?: string): Promise<Booking[]> => {
+  let q;
+  if (agencyId) {
+    // This assumes that bookings relevant to an agency have an 'agencyId' field 
+    // storing that agency's UID. If your data model is different, adjust this query.
+    q = query(
+      collection(db, BOOKINGS_COLLECTION), 
+      where("agencyId", "==", agencyId), 
+      orderBy("pickupDate", "desc")
+    );
+  } else {
+    // For admin or general fetches without agency scoping
+    q = query(collection(db, BOOKINGS_COLLECTION), orderBy("pickupDate", "desc"));
+  }
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => fromFirestore(doc));
 };
@@ -54,35 +66,44 @@ export const getCustomerBookings = async (customerId: string): Promise<Booking[]
 };
 
 // Add a new booking
-// The bookingData here should be what the customer provides, plus their customerId
-export const addBooking = async (bookingData: Omit<Booking, "id" | "customerName" | "customerEmail" | "customerPhone"> & { customerId: string }): Promise<string> => {
+export const addBooking = async (bookingData: Omit<Booking, "id" | "customerName" | "customerEmail" | "customerPhone"> & { customerId: string; agencyId?: string }): Promise<string> => {
   const currentUser = auth.currentUser;
   let customerDetails = {};
 
-  if (currentUser) {
+  if (currentUser && currentUser.uid === bookingData.customerId) { // Ensure booking is for the current user or being made by an authorized party
     customerDetails = {
       customerName: currentUser.displayName || currentUser.email?.split('@')[0] || "Customer",
       customerEmail: currentUser.email || "Not available",
-      customerPhone: currentUser.phoneNumber || "Not available", // Assuming phone might be available on user profile
+      customerPhone: currentUser.phoneNumber || "Not available",
     };
+  } else if (!currentUser && bookingData.customerId) { // Case for agency creating for known customerId but not logged in as customer
+     // Potentially fetch customer details if agency is creating booking for a customer
+     // For now, we'll rely on agency to input these or have them as part of bookingData.
+     // This part needs careful consideration based on how agencies create bookings.
+     // Assuming bookingData ALREADY contains name/email/phone if agency creates it.
   } else {
-    // This case should ideally be prevented by UI checks
-    // but as a fallback:
-    customerDetails = {
+    // Fallback, should ideally be caught by UI
+     customerDetails = {
       customerName: "Anonymous Customer",
       customerEmail: "anonymous@example.com",
       customerPhone: "N/A",
     }
   }
 
-
-  const newBookingData = {
+  const newBookingData: any = {
     ...bookingData,
-    ...customerDetails,
+    ...customerDetails, // This might be overwritten if bookingData already has these from agency input
     pickupDate: Timestamp.fromDate(new Date(bookingData.pickupDate)),
     dropoffDate: Timestamp.fromDate(new Date(bookingData.dropoffDate)),
-    status: bookingData.status || "Pending", // Ensure status is set
+    status: bookingData.status || "Pending",
   };
+  
+  // If an agency is creating it, they should pass their agencyId.
+  // If a customer is creating it, agencyId might be null or assigned later.
+  if (bookingData.agencyId) {
+    newBookingData.agencyId = bookingData.agencyId;
+  }
+
 
   const docRef = await addDoc(collection(db, BOOKINGS_COLLECTION), newBookingData);
   return docRef.id;
@@ -95,7 +116,7 @@ export const updateBooking = async (bookingId: string, bookingData: Partial<Omit
   const updateData: any = { ...bookingData };
   if (bookingData.pickupDate && bookingData.pickupDate instanceof Date) {
     updateData.pickupDate = Timestamp.fromDate(bookingData.pickupDate);
-  } else if (bookingData.pickupDate) { // Handle if it's already a string/number timestamp
+  } else if (bookingData.pickupDate) { 
      updateData.pickupDate = Timestamp.fromDate(new Date(bookingData.pickupDate));
   }
 
@@ -122,7 +143,7 @@ export const updateBookingStatus = async (bookingId: string, status: Booking["st
     try {
       const bookingSnap = await getDoc(bookingRef);
       if (bookingSnap.exists()) {
-        const bookingData = fromFirestore(bookingSnap); // Use our helper to convert
+        const bookingData = fromFirestore(bookingSnap); 
         
         if (bookingData.customerId) {
           const pickupDateFormatted = bookingData.pickupDate 
@@ -131,8 +152,8 @@ export const updateBookingStatus = async (bookingId: string, status: Booking["st
           
           await addCustomerNotification(bookingData.customerId, {
             title: "Booking Request Update",
-            description: `Unfortunately, your booking for ${bookingData.pickupLocation || 'your selected destination'} on ${pickupDateFormatted} could not be confirmed at this time. Please consider rescheduling or contact support.`,
-            type: "booking_denied", // Specific type for this scenario
+            description: `Unfortunately, your booking for ${bookingData.pickupLocation || 'your selected destination'} on ${pickupDateFormatted} could not be fulfilled as requested. Please try rescheduling or contact support.`,
+            type: "booking_denied", 
             link: "/customer/dashboard/my-bookings" 
           });
           console.log(`Customer notification sent for denied booking ${bookingId}`);
@@ -142,8 +163,6 @@ export const updateBookingStatus = async (bookingId: string, status: Booking["st
       }
     } catch (error) {
       console.error("Error sending notification for denied booking:", error);
-      // Do not let notification failure block the status update.
-      // In a production app, you might queue this or add more robust error handling.
     }
   }
 };

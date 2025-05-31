@@ -18,35 +18,67 @@ import { getEmployees } from "@/lib/services/employeesService";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { auth } from "@/lib/firebase";
+import { useState, useEffect } from "react";
 
 
 export default function AgencyDashboardOverviewPage() {
-  const { data: bookings = [], isLoading: isLoadingBookings, error: bookingsError } = useQuery<Booking[], Error>({
-    queryKey: ["bookings"],
-    queryFn: getBookings,
+  const [currentUser, setCurrentUser] = useState(auth.currentUser);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const agencyId = currentUser?.uid;
+
+  const { data: bookingsData, isLoading: isLoadingBookings, error: bookingsError } = useQuery<Booking[], Error>({
+    queryKey: ["agencyBookingsDashboard", agencyId], // Scoped query key
+    queryFn: () => {
+      if (!agencyId) return Promise.resolve([]);
+      return getBookings(agencyId); // Pass agencyId to fetch agency-specific bookings
+    },
+    enabled: !!agencyId,
   });
 
   const { data: vehicles = [], isLoading: isLoadingVehicles, error: vehiclesError } = useQuery<Vehicle[], Error>({
-    queryKey: ["vehicles"],
-    queryFn: getVehicles,
+    queryKey: ["vehicles", agencyId],
+    queryFn: () => {
+      if (!agencyId) return Promise.resolve([]);
+      return getVehicles(agencyId);
+    },
+    enabled: !!agencyId,
   });
 
   const { data: employees = [], isLoading: isLoadingEmployees, error: employeesError } = useQuery<Employee[], Error>({
-    queryKey: ["employees"],
-    queryFn: getEmployees,
+    queryKey: ["employees", agencyId],
+    queryFn: () => {
+      if (!agencyId) return Promise.resolve([]);
+      return getEmployees(agencyId);
+    },
+    enabled: !!agencyId,
   });
 
-  const upcomingBookings = bookings
+  const upcomingBookings = (bookingsData || [])
     .filter(b => {
         try {
-            return new Date(b.pickupDate) >= new Date() && (b.status === "Pending" || b.status === "Confirmed");
+            // Ensure pickupDate is valid and can be converted to Date
+            const pickupDate = b.pickupDate instanceof Date ? b.pickupDate : new Date(b.pickupDate);
+            if (isNaN(pickupDate.getTime())) return false;
+            return pickupDate >= new Date() && (b.status === "Pending" || b.status === "Confirmed");
         } catch (e) {
             return false; 
         }
     })
     .sort((a, b) => {
         try {
-            return new Date(a.pickupDate).getTime() - new Date(b.pickupDate).getTime();
+            const dateA = a.pickupDate instanceof Date ? a.pickupDate : new Date(a.pickupDate);
+            const dateB = b.pickupDate instanceof Date ? b.pickupDate : new Date(b.pickupDate);
+            if (isNaN(dateA.getTime())) return 1; // Invalid dates sort last
+            if (isNaN(dateB.getTime())) return -1;
+            return dateA.getTime() - dateB.getTime();
         } catch (e) {
             return 0;
         }
@@ -56,9 +88,9 @@ export default function AgencyDashboardOverviewPage() {
   const summaryStats: DashboardCardItem[] = [
     { 
       title: "Total Bookings", 
-      value: isLoadingBookings ? "..." : bookings.length.toString(), 
+      value: isLoadingBookings ? "..." : (bookingsData?.length ?? 0).toString(), 
       icon: CalendarCheck, 
-      trend: isLoadingBookings ? "" : (bookings.filter(b => b.status === "Pending").length > 0 ? `+${bookings.filter(b => b.status === "Pending").length} pending` : "No pending"), 
+      trend: isLoadingBookings ? "" : ((bookingsData || []).filter(b => b.status === "Pending").length > 0 ? `+${(bookingsData || []).filter(b => b.status === "Pending").length} pending` : "No pending"), 
       actionLabel: "View Bookings", 
       actionHref: "/agency/dashboard/bookings" 
     },
@@ -83,7 +115,7 @@ export default function AgencyDashboardOverviewPage() {
   const safeFormat = (dateInput: Date | string | undefined, formatString: string) => {
     if (!dateInput) return "N/A";
     try {
-      const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+      const date = typeof dateInput === 'string' || !(dateInput instanceof Date) ? new Date(dateInput) : dateInput;
       if (isNaN(date.getTime())) return "Invalid Date";
       return format(date, formatString);
     } catch {
@@ -178,7 +210,6 @@ export default function AgencyDashboardOverviewPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="outline" size="sm" asChild>
-                          {/* Link to booking details page - assuming bookings page can handle query param for specific booking */}
                           <Link href={`/agency/dashboard/bookings#${booking.id}`}> 
                             View <ExternalLink className="ml-2 h-3 w-3" />
                           </Link>
