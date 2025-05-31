@@ -19,21 +19,37 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getEmployees, addEmployee, updateEmployee, deleteEmployee } from "@/lib/services/employeesService";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { auth } from "@/lib/firebase";
+import type { User } from "firebase/auth";
 
 
 export default function AgencyEmployeesPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const agencyId = currentUser?.uid;
 
   const { data: employees = [], isLoading: isLoadingEmployees, error: employeesError } = useQuery<Employee[], Error>({
-    queryKey: ["employees"],
-    queryFn: getEmployees,
+    queryKey: ["employees", agencyId], // Include agencyId in queryKey
+    queryFn: () => {
+      if (!agencyId) return Promise.resolve([]);
+      return getEmployees(agencyId);
+    },
+    enabled: !!agencyId, // Only run query if agencyId is available
   });
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -48,11 +64,12 @@ export default function AgencyEmployeesPage() {
 
 
   const { mutate: addEmployeeMutation, isPending: isAddingEmployee } = useMutation({
-    mutationFn: addEmployee,
+    mutationFn: (employeePayload: Omit<Employee, "id" | "avatarUrl"> & { avatarUrl?: string; agencyId: string }) => addEmployee(employeePayload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["employees", agencyId] });
       toast({ title: "Employee Added", description: "The new employee has been successfully created." });
       setIsFormOpen(false);
+      resetForm();
     },
     onError: (error) => {
       toast({ title: "Error Adding Employee", description: error.message, variant: "destructive" });
@@ -60,11 +77,12 @@ export default function AgencyEmployeesPage() {
   });
 
   const { mutate: updateEmployeeMutation, isPending: isUpdatingEmployee } = useMutation({
-    mutationFn: async (employeeData: { id: string; data: Partial<Omit<Employee, "id">>}) => updateEmployee(employeeData.id, employeeData.data),
+    mutationFn: async (employeeData: { id: string; data: Partial<Omit<Employee, "id" | "agencyId">>}) => updateEmployee(employeeData.id, employeeData.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["employees", agencyId] });
       toast({ title: "Employee Updated", description: "The employee details have been successfully updated." });
       setIsFormOpen(false);
+      resetForm();
     },
     onError: (error) => {
       toast({ title: "Error Updating Employee", description: error.message, variant: "destructive" });
@@ -74,7 +92,7 @@ export default function AgencyEmployeesPage() {
   const { mutate: deleteEmployeeMutation } = useMutation({
     mutationFn: deleteEmployee,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["employees", agencyId] });
       toast({ title: "Employee Deleted", description: "The employee has been successfully deleted." });
     },
     onError: (error) => {
@@ -82,6 +100,14 @@ export default function AgencyEmployeesPage() {
     },
   });
 
+  const resetForm = () => {
+    setEditingEmployee(null);
+    setName("");
+    setRole("");
+    setEmail("");
+    setPhone("");
+    setAvatarUrl("");
+  };
 
   const handleOpenForm = (employee?: Employee) => {
     if (employee) {
@@ -92,24 +118,23 @@ export default function AgencyEmployeesPage() {
       setPhone(employee.phone);
       setAvatarUrl(employee.avatarUrl || "");
     } else {
-      setEditingEmployee(null);
-      setName("");
-      setRole("");
-      setEmail("");
-      setPhone("");
-      setAvatarUrl("");
+      resetForm();
     }
     setIsFormOpen(true);
   };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    const employeePayload = { name, role, email, phone, avatarUrl: avatarUrl || undefined };
+    if (!agencyId) {
+      toast({ title: "Authentication Error", description: "Could not identify agency.", variant: "destructive" });
+      return;
+    }
+    const employeePayloadBase = { name, role, email, phone, avatarUrl: avatarUrl || undefined };
 
     if (editingEmployee) {
-      updateEmployeeMutation({id: editingEmployee.id, data: employeePayload});
+      updateEmployeeMutation({id: editingEmployee.id, data: employeePayloadBase});
     } else {
-      addEmployeeMutation(employeePayload);
+      addEmployeeMutation({...employeePayloadBase, agencyId });
     }
   };
   
@@ -120,6 +145,15 @@ export default function AgencyEmployeesPage() {
   };
 
   const isMutating = isAddingEmployee || isUpdatingEmployee;
+
+  if (!currentUser && !auth.currentUser) {
+     return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2">Loading user data...</p>
+      </div>
+    );
+  }
 
   if (employeesError) {
     return (
@@ -136,7 +170,7 @@ export default function AgencyEmployeesPage() {
   return (
     <>
       <PageHeader title="Employee Management" description="Manage your agency's staff and their roles.">
-        <Button onClick={() => handleOpenForm()} disabled={isMutating}>
+        <Button onClick={() => handleOpenForm()} disabled={isMutating || !agencyId}>
           <UserPlus className="mr-2 h-4 w-4" /> Add Employee
         </Button>
       </PageHeader>
@@ -147,7 +181,7 @@ export default function AgencyEmployeesPage() {
           <CardDescription>A comprehensive list of all employees in your agency.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoadingEmployees ? (
+          {isLoadingEmployees && agencyId ? (
              <Table>
                 <TableHeader>
                   <TableRow>
@@ -170,6 +204,11 @@ export default function AgencyEmployeesPage() {
                   ))}
                 </TableBody>
             </Table>
+          ) : !agencyId && !isLoadingEmployees ? (
+            <div className="text-center py-10">
+              <Loader2 className="mx-auto h-12 w-12 text-muted-foreground animate-spin mb-4" />
+              <p className="text-lg font-medium text-muted-foreground">Identifying agency...</p>
+            </div>
           ) : employees.length === 0 ? (
             <div className="text-center py-10">
               <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -262,8 +301,8 @@ export default function AgencyEmployeesPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)} disabled={isMutating}>Cancel</Button>
-              <Button type="submit" disabled={isMutating}>
+              <Button type="button" variant="outline" onClick={() => { setIsFormOpen(false); resetForm();}} disabled={isMutating}>Cancel</Button>
+              <Button type="submit" disabled={isMutating || !agencyId}>
                 {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editingEmployee ? "Save Changes" : "Add Employee"}
               </Button>
@@ -274,5 +313,3 @@ export default function AgencyEmployeesPage() {
     </>
   );
 }
-
-    

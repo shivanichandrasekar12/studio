@@ -21,21 +21,37 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getVehicles, addVehicle, updateVehicle, deleteVehicle } from "@/lib/services/vehiclesService";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { auth } from "@/lib/firebase";
+import type { User } from "firebase/auth";
 
 
 export default function AgencyVehiclesPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
 
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const agencyId = currentUser?.uid;
+  
   const { data: vehicles = [], isLoading: isLoadingVehicles, error: vehiclesError } = useQuery<Vehicle[], Error>({
-    queryKey: ["vehicles"],
-    queryFn: getVehicles,
+    queryKey: ["vehicles", agencyId], // Include agencyId in queryKey
+    queryFn: () => {
+      if (!agencyId) return Promise.resolve([]);
+      return getVehicles(agencyId);
+    },
+    enabled: !!agencyId, // Only run query if agencyId is available
   });
   
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -52,11 +68,12 @@ export default function AgencyVehiclesPage() {
 
 
   const { mutate: addVehicleMutation, isPending: isAddingVehicle } = useMutation({
-    mutationFn: addVehicle,
+    mutationFn: (vehiclePayload: Omit<Vehicle, "id" | "imageUrl"> & { imageUrl?: string; agencyId: string }) => addVehicle(vehiclePayload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles", agencyId] });
       toast({ title: "Vehicle Added", description: "The new vehicle has been successfully added to your fleet." });
       setIsFormOpen(false);
+      resetForm();
     },
     onError: (error) => {
       toast({ title: "Error Adding Vehicle", description: error.message, variant: "destructive" });
@@ -64,11 +81,12 @@ export default function AgencyVehiclesPage() {
   });
 
   const { mutate: updateVehicleMutation, isPending: isUpdatingVehicle } = useMutation({
-    mutationFn: async (vehiclePayload: { id: string; data: Partial<Omit<Vehicle, "id">>}) => updateVehicle(vehiclePayload.id, vehiclePayload.data),
+    mutationFn: async (vehiclePayload: { id: string; data: Partial<Omit<Vehicle, "id" | "agencyId">>}) => updateVehicle(vehiclePayload.id, vehiclePayload.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles", agencyId] });
       toast({ title: "Vehicle Updated", description: "The vehicle details have been successfully updated." });
       setIsFormOpen(false);
+      resetForm();
     },
     onError: (error) => {
       toast({ title: "Error Updating Vehicle", description: error.message, variant: "destructive" });
@@ -78,7 +96,7 @@ export default function AgencyVehiclesPage() {
   const { mutate: deleteVehicleMutation } = useMutation({
     mutationFn: deleteVehicle,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles", agencyId] });
       toast({ title: "Vehicle Deleted", description: "The vehicle has been successfully removed from your fleet." });
     },
     onError: (error) => {
@@ -86,6 +104,16 @@ export default function AgencyVehiclesPage() {
     },
   });
 
+  const resetForm = () => {
+    setEditingVehicle(null);
+    setType("");
+    setMake("");
+    setModelValue("");
+    setRegistrationNumber("");
+    setCapacity("");
+    setStatus("Available");
+    setImageUrl("");
+  };
 
   const handleOpenForm = (vehicle?: Vehicle) => {
     if (vehicle) {
@@ -98,29 +126,26 @@ export default function AgencyVehiclesPage() {
       setStatus(vehicle.status);
       setImageUrl(vehicle.imageUrl || "");
     } else {
-      setEditingVehicle(null);
-      setType("");
-      setMake("");
-      setModelValue("");
-      setRegistrationNumber("");
-      setCapacity("");
-      setStatus("Available");
-      setImageUrl("");
+      resetForm();
     }
     setIsFormOpen(true);
   };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    const vehiclePayload = {
+    if (!agencyId) {
+      toast({ title: "Authentication Error", description: "Could not identify agency.", variant: "destructive" });
+      return;
+    }
+    const vehiclePayloadBase = {
       type, make, model: modelValue, registrationNumber, 
       capacity: Number(capacity), status, imageUrl: imageUrl || undefined,
     };
 
     if (editingVehicle) {
-      updateVehicleMutation({id: editingVehicle.id, data: vehiclePayload});
+      updateVehicleMutation({id: editingVehicle.id, data: vehiclePayloadBase});
     } else {
-      addVehicleMutation(vehiclePayload);
+      addVehicleMutation({...vehiclePayloadBase, agencyId });
     }
   };
   
@@ -131,6 +156,15 @@ export default function AgencyVehiclesPage() {
   };
 
   const isMutating = isAddingVehicle || isUpdatingVehicle;
+
+  if (!currentUser && !auth.currentUser) {
+     return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2">Loading user data...</p>
+      </div>
+    );
+  }
 
   if (vehiclesError) {
     return (
@@ -147,7 +181,7 @@ export default function AgencyVehiclesPage() {
   return (
     <>
       <PageHeader title="Vehicle Management" description="Oversee your fleet of vehicles.">
-        <Button onClick={() => handleOpenForm()} disabled={isMutating}>
+        <Button onClick={() => handleOpenForm()} disabled={isMutating || !agencyId}>
           <Car className="mr-2 h-4 w-4" /> Add Vehicle
         </Button>
       </PageHeader>
@@ -158,7 +192,7 @@ export default function AgencyVehiclesPage() {
           <CardDescription>Details of all vehicles currently in your agency's fleet.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoadingVehicles ? (
+          {isLoadingVehicles && agencyId ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -185,6 +219,11 @@ export default function AgencyVehiclesPage() {
                 ))}
               </TableBody>
             </Table>
+          ) : !agencyId && !isLoadingVehicles ? (
+            <div className="text-center py-10">
+              <Loader2 className="mx-auto h-12 w-12 text-muted-foreground animate-spin mb-4" />
+              <p className="text-lg font-medium text-muted-foreground">Identifying agency...</p>
+            </div>
           ) : vehicles.length === 0 ? (
              <div className="text-center py-10">
               <Truck className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -309,8 +348,8 @@ export default function AgencyVehiclesPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)} disabled={isMutating}>Cancel</Button>
-              <Button type="submit" disabled={isMutating}>
+              <Button type="button" variant="outline" onClick={() => { setIsFormOpen(false); resetForm(); }} disabled={isMutating}>Cancel</Button>
+              <Button type="submit" disabled={isMutating || !agencyId}>
                  {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editingVehicle ? "Save Changes" : "Add Vehicle"}
               </Button>
@@ -321,5 +360,3 @@ export default function AgencyVehiclesPage() {
     </>
   );
 }
-
-    

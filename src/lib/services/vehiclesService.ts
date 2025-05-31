@@ -10,11 +10,11 @@ import {
   deleteDoc,
   query,
   orderBy,
+  where, // Import where
 } from "firebase/firestore";
 
 const VEHICLES_COLLECTION = "vehicles";
 
-// Helper (currently no date fields in Vehicle type)
 const fromFirestore = (vehicleData: any): Vehicle => {
   const data = vehicleData.data();
   return {
@@ -23,28 +23,36 @@ const fromFirestore = (vehicleData: any): Vehicle => {
   } as Vehicle;
 };
 
-// Get all vehicles
-export const getVehicles = async (): Promise<Vehicle[]> => {
-  const q = query(collection(db, VEHICLES_COLLECTION), orderBy("make", "asc"));
+// Get vehicles for a specific agency
+export const getVehicles = async (agencyId: string): Promise<Vehicle[]> => {
+  if (!agencyId) {
+    console.warn("getVehicles called without agencyId");
+    return [];
+  }
+  const q = query(
+    collection(db, VEHICLES_COLLECTION), 
+    where("agencyId", "==", agencyId),
+    orderBy("make", "asc")
+  );
   const snapshot = await getDocs(q);
   return snapshot.docs.map(docSnapshot => fromFirestore({ id: docSnapshot.id, data: () => docSnapshot.data() }));
 };
 
-// Add a new vehicle
-export const addVehicle = async (vehicleData: Omit<Vehicle, "id" | "imageUrl"> & { imageUrl?: string }): Promise<string> => {
+// Add a new vehicle, ensuring agencyId is included
+export const addVehicle = async (vehicleData: Omit<Vehicle, "id" | "imageUrl"> & { imageUrl?: string; agencyId: string }): Promise<string> => {
   const docRef = await addDoc(collection(db, VEHICLES_COLLECTION), {
     ...vehicleData,
-    capacity: Number(vehicleData.capacity) // Ensure capacity is stored as a number
+    capacity: Number(vehicleData.capacity) 
   });
   return docRef.id;
 };
 
-// Update an existing vehicle
-export const updateVehicle = async (vehicleId: string, vehicleData: Partial<Omit<Vehicle, "id">>): Promise<void> => {
+// Update an existing vehicle (security rules will ensure agencyId cannot be changed by non-admins)
+export const updateVehicle = async (vehicleId: string, vehicleData: Partial<Omit<Vehicle, "id" | "agencyId">>): Promise<void> => {
   const vehicleRef = doc(db, VEHICLES_COLLECTION, vehicleId);
   const updateData: any = { ...vehicleData };
   if (vehicleData.capacity !== undefined) {
-    updateData.capacity = Number(vehicleData.capacity); // Ensure capacity is stored as a number
+    updateData.capacity = Number(vehicleData.capacity); 
   }
   await updateDoc(vehicleRef, updateData);
 };

@@ -12,12 +12,12 @@ service cloud.firestore {
     function getUserDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
-    
+
     function userHasRole(role) {
       let userDoc = getUserDoc();
       return isSignedIn() && userDoc.exists && userDoc.data != null && userDoc.data.role == role;
     }
-
+    
     function isCustomer() {
       return userHasRole('customer');
     }
@@ -32,22 +32,10 @@ service cloud.firestore {
 
     // Users Collection (/users/{userId})
     match /users/{userId} {
-      // Create: Any authenticated user can create their own profile document during registration.
       allow create: if isSignedIn() && request.auth.uid == userId;
-
-      // Read:
-      // - Users can read their own profile.
-      // - Admins can read any user's profile.
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-
-      // Update:
-      // - Users can update their own profile (e.g., displayName, but not role directly).
-      // - Admins can update any user's profile (e.g., to change a role).
       allow update: if isSignedIn() && 
                       ( (request.auth.uid == userId && !('role' in request.resource.data)) || isAdmin() );
-                      // Prevents self-role change unless admin
-
-      // Delete: Generally false for users. Admins could delete.
       allow delete: if isAdmin();
     }
     // Allow admins to list all users
@@ -58,128 +46,77 @@ service cloud.firestore {
 
     // Bookings Collection (/bookings/{bookingId})
     match /bookings/{bookingId} {
-      // Create:
-      // - Customers can create their own bookings.
-      // - Agencies can create bookings (e.g., on behalf of customers).
-      // - Admins can create bookings.
       allow create: if (isCustomer() && request.resource.data.customerId == request.auth.uid) ||
-                       isAgency() ||
+                       isAgency() || // Agencies can also create bookings
                        isAdmin();
-      // Read:
-      // - Customers can read their own bookings.
-      // - Agencies can read all bookings.
-      // - Admins can read all bookings.
       allow read: if (isCustomer() && resource.data.customerId == request.auth.uid) ||
                      isAgency() ||
                      isAdmin();
-      // Update:
-      // - Agencies can update any booking (e.g., status, assign vehicle/driver).
-      // - Admins can update any booking.
-      allow update: if isAgency() || isAdmin();
-
-
-      // Delete:
-      // - Agencies can delete bookings.
-      // - Admins can delete bookings.
-      // - Customers cannot delete.
+      allow update: if isAgency() || isAdmin(); // Agencies and Admins can update bookings
       allow delete: if isAgency() || isAdmin();
     }
+     match /bookings {
+      allow list: if isAgency() || isAdmin(); // Agencies and Admins can list bookings
+    }
 
-    // Employees Collection (/employees/{employeeId}) - Primarily Agency data
+    // Employees Collection (/employees/{employeeId})
     match /employees/{employeeId} {
-      // Create, Read, Update, Delete:
-      // - Agencies can manage all employees.
-      // - Admins can manage all employees.
-      // - Customers have no access.
-      allow read, write: if isAgency() || isAdmin();
+      allow create: if (isAgency() && request.resource.data.agencyId == request.auth.uid) || isAdmin();
+      allow read: if (isAgency() && resource.data.agencyId == request.auth.uid) || isAdmin();
+      allow update: if (isAgency() && resource.data.agencyId == request.auth.uid && !('agencyId' in request.resource.data)) || isAdmin(); // Agency cannot change agencyId
+      allow delete: if (isAgency() && resource.data.agencyId == request.auth.uid) || isAdmin();
     }
-     match /employees { // Allow listing for agency/admin
-      allow list: if isAgency() || isAdmin();
+    match /employees {
+      allow list: if isAgency() || isAdmin(); // Agencies list their own, Admins list all (client query filters for agency)
     }
 
 
-    // Vehicles Collection (/vehicles/{vehicleId}) - Primarily Agency data
+    // Vehicles Collection (/vehicles/{vehicleId})
     match /vehicles/{vehicleId} {
-      // Create, Read, Update, Delete:
-      // - Agencies can manage all vehicles.
-      // - Admins can manage all vehicles.
-      // - Customers have no access.
-      allow read, write: if isAgency() || isAdmin();
+      allow create: if (isAgency() && request.resource.data.agencyId == request.auth.uid) || isAdmin();
+      allow read: if (isAgency() && resource.data.agencyId == request.auth.uid) || isAdmin();
+      allow update: if (isAgency() && resource.data.agencyId == request.auth.uid && !('agencyId' in request.resource.data)) || isAdmin(); // Agency cannot change agencyId
+      allow delete: if (isAgency() && resource.data.agencyId == request.auth.uid) || isAdmin();
     }
-    match /vehicles { // Allow listing for agency/admin
-      allow list: if isAgency() || isAdmin();
+     match /vehicles {
+      allow list: if isAgency() || isAdmin(); // Agencies list their own, Admins list all (client query filters for agency)
     }
+
 
     // Notifications Collection (/notifications/{notificationId})
     match /notifications/{notificationId} {
-      // Create:
-      // - Admins can create any notification.
-      // - System/Service can create notifications (booking service creating for customer)
-      allow create: if isAdmin() || request.resource.data.createdBySystem == true;
-
-
-      // Read:
-      // - Customers can read notifications targeted to their userId and role 'customer'.
-      // - Agencies can read notifications targeted to role 'agency'.
-      // - Admins can read all notifications.
+      allow create: if isAdmin() || (isAgency() && request.resource.data.role == 'customer'); // Agency creating notifications for its customers
       allow read: if (isCustomer() && resource.data.userId == request.auth.uid && resource.data.role == 'customer') ||
-                     (isAgency() && resource.data.role == 'agency') || 
+                     (isAgency() && resource.data.role == 'agency' && resource.data.userId == request.auth.uid) || // Agency viewing their own notifications
+                     (isAgency() && resource.data.role == 'agency' && resource.data.userId == null) || // Agency viewing general agency notifications
                      isAdmin();
-
-      // Update: (Primarily for marking as read)
-      // - Customers can update their own notifications.
-      // - Agencies can update agency-wide notifications.
-      // - Admins can update any notification.
       allow update: if ((isCustomer() && resource.data.userId == request.auth.uid && resource.data.role == 'customer') ||
-                        (isAgency() && resource.data.role == 'agency') || 
+                        (isAgency() && resource.data.role == 'agency' && resource.data.userId == request.auth.uid) ||
+                        (isAgency() && resource.data.role == 'agency' && resource.data.userId == null) ||
                         isAdmin()) &&
                        request.resource.data.keys().hasOnly(['read']); 
-
-      // Delete:
-      // - Admins can delete notifications.
       allow delete: if isAdmin();
     }
-     match /notifications { // Allow listing for admin and specific queries for customer/agency
-      allow list: if isAdmin() || 
-                    (isCustomer() && request.query.resource.data.userId == request.auth.uid && request.query.resource.data.role == 'customer') ||
-                    (isAgency() && request.query.resource.data.role == 'agency');
+     match /notifications {
+      allow list: if isCustomer() || isAgency() || isAdmin(); // Client query filters appropriately
     }
 
 
     // Reviews Collection (/reviews/{reviewId})
     match /reviews/{reviewId} {
-      // Create:
-      // - Customers can create 'user_submitted' reviews for themselves.
-      // - Agencies can create 'customer_feedback' reviews.
-      // - Admins (potentially, for seeding or moderation).
       allow create: if (isCustomer() && request.resource.data.reviewerId == request.auth.uid && request.resource.data.reviewType == 'user_submitted') ||
-                       (isAgency() && request.resource.data.reviewType == 'customer_feedback') ||
-                       isAdmin();
-
-      // Read:
-      // - Customers can read their own 'user_submitted' reviews.
-      // - Agencies can read 'customer_feedback' reviews and 'user_submitted' reviews (to see what customers said about their service).
-      // - Admins can read all reviews.
+                       (isAgency() && request.resource.data.reviewType == 'customer_feedback' && request.resource.data.agencyId == request.auth.uid ) ||
+                       isAdmin(); 
       allow read: if (isCustomer() && resource.data.reviewerId == request.auth.uid && resource.data.reviewType == 'user_submitted') ||
                      (isAgency() && (resource.data.reviewType == 'customer_feedback' || resource.data.reviewType == 'user_submitted')) ||
                      isAdmin();
-
-      // Update:
-      // - Agencies can update 'customer_feedback' reviews they logged.
-      // - Admins can update any review (moderation).
-      allow update: if (isAgency() && resource.data.reviewType == 'customer_feedback') || 
+      allow update: if (isAgency() && resource.data.reviewType == 'customer_feedback' && resource.data.agencyId == request.auth.uid && !('agencyId' in request.resource.data) && !('reviewerId' in request.resource.data) && !('reviewType' in request.resource.data) ) || 
                        isAdmin();
-
-      // Delete:
-      // - Agencies can delete 'customer_feedback' reviews they logged.
-      // - Admins can delete any review.
-      allow delete: if (isAgency() && resource.data.reviewType == 'customer_feedback') || 
+      allow delete: if (isAgency() && resource.data.reviewType == 'customer_feedback' && resource.data.agencyId == request.auth.uid) || 
                        isAdmin();
     }
-     match /reviews { // Allow listing for admin, and specific queries for customer/agency
-      allow list: if isAdmin() ||
-                    (isCustomer() && request.query.resource.data.reviewerId == request.auth.uid && request.query.resource.data.reviewType == 'user_submitted') ||
-                    (isAgency() && (request.query.resource.data.reviewType == 'customer_feedback' || request.query.resource.data.reviewType == 'user_submitted'));
+    match /reviews {
+      allow list: if isCustomer() || isAgency() || isAdmin(); // Client query filters appropriately
     }
     
     // Default deny for any path not explicitly matched

@@ -8,6 +8,7 @@ export type Employee = {
   email: string;
   phone: string;
   avatarUrl?: string;
+  agencyId: string; // Added for multi-tenancy
 };
 
 export type Vehicle = {
@@ -19,6 +20,7 @@ export type Vehicle = {
   capacity: number;
   status: "Available" | "In Use" | "Maintenance";
   imageUrl?: string;
+  agencyId: string; // Added for multi-tenancy
 };
 
 export type Booking = {
@@ -35,7 +37,7 @@ export type Booking = {
   employeeId?: string; // Driver
   status: "Pending" | "Confirmed" | "Denied" | "Completed" | "Cancelled";
   notes?: string;
-  agencyId?: string; // To associate booking with an agency
+  agencyId?: string; // To associate booking with an agency (can be the agency user's UID)
   customerId?: string; // To associate booking with a customer
 };
 
@@ -84,8 +86,6 @@ export type Review = {
   reviewType: 'customer_feedback' | 'driver_report' | 'agency_assessment' | 'user_submitted';
 };
 
-// This type is already in usersService.ts, but good to have in main types if used elsewhere.
-// Redefining or importing might be needed based on project structure.
 export interface UserProfileData {
   uid: string;
   email: string;
