@@ -15,10 +15,12 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { getUserRole } from "@/lib/services/usersService";
+import type { UserRole } from "@/types";
 
 export default function CustomerLoginPage() {
   const router = useRouter();
@@ -26,17 +28,36 @@ export default function CustomerLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const expectedRole: UserRole = "customer";
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      toast({
-        title: "Login Successful",
-        description: "Redirecting to your dashboard...",
-      });
-      router.push("/customer/dashboard");
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      const userRole = await getUserRole(user.uid);
+
+      if (userRole === expectedRole) {
+        toast({
+          title: "Login Successful",
+          description: "Redirecting to your dashboard...",
+        });
+        router.push("/customer/dashboard");
+      } else {
+        await signOut(auth);
+        toast({
+          title: "Access Denied",
+          description: `Your account is not configured as a ${expectedRole}.`,
+          variant: "destructive",
+        });
+        if (userRole) {
+           console.info(`Customer login attempt failed: User ${user.email} has role '${userRole}', expected '${expectedRole}'.`);
+        } else {
+           console.info(`Customer login attempt failed: User ${user.email} has no role defined in Firestore.`);
+        }
+      }
     } catch (error: any) {
       let errorMessage = "An unknown error occurred. Please try again.";
       if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {

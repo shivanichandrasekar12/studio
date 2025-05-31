@@ -15,10 +15,11 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { createUserProfile } from "@/lib/services/usersService";
 
 export default function CustomerRegisterPage() {
   const router = useRouter();
@@ -32,15 +33,19 @@ export default function CustomerRegisterPage() {
     event.preventDefault();
     setIsLoading(true);
     try {
-      // Note: fullName is not directly used by createUserWithEmailAndPassword
-      // It would typically be saved to a Firestore document linked to the user's UID
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      console.log("Customer Registered:", userCredential.user);
+      const user = userCredential.user;
+
+      // Update Firebase Auth profile
+      await updateProfile(user, { displayName: fullName });
+      
+      // Create user profile in Firestore
+      await createUserProfile(user.uid, user.email!, 'customer', fullName);
+      
       toast({
         title: "Registration Successful",
         description: "Your account has been created. Redirecting to dashboard...",
       });
-      // Potentially save fullName to Firestore here associated with userCredential.user.uid
       router.push("/customer/dashboard");
     } catch (error: any) {
       console.error("Customer Registration failed:", error);

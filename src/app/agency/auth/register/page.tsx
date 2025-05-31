@@ -15,10 +15,11 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { createUserProfile } from "@/lib/services/usersService";
 
 export default function AgencyRegisterPage() {
   const router = useRouter();
@@ -32,15 +33,19 @@ export default function AgencyRegisterPage() {
     event.preventDefault();
     setIsLoading(true);
     try {
-      // Note: agencyName is not directly used by createUserWithEmailAndPassword
-      // It would typically be saved to a Firestore document linked to the user's UID
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      console.log("Agency Registered:", userCredential.user);
+      const user = userCredential.user;
+
+      // Update Firebase Auth profile (optional, but good for consistency)
+      await updateProfile(user, { displayName: agencyName });
+
+      // Create user profile in Firestore
+      await createUserProfile(user.uid, user.email!, 'agency', agencyName);
+      
       toast({
         title: "Registration Successful",
         description: "Your agency account has been created. Redirecting to dashboard...",
       });
-      // Potentially save agencyName to Firestore here associated with userCredential.user.uid
       router.push("/agency/dashboard");
     } catch (error: any) {
       console.error("Agency Registration failed:", error);
