@@ -6,7 +6,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { DashboardCardItem, Booking } from "@/types";
+import type { DashboardCardItem, Booking, Vehicle, Employee } from "@/types";
 import { CalendarCheck, Users, Truck, DollarSign, PlusCircle, ExternalLink, Wand2, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -26,38 +26,72 @@ export default function AgencyDashboardOverviewPage() {
     queryFn: getBookings,
   });
 
-  const { data: vehicles = [], isLoading: isLoadingVehicles } = useQuery<Vehicle[], Error>({
+  const { data: vehicles = [], isLoading: isLoadingVehicles, error: vehiclesError } = useQuery<Vehicle[], Error>({
     queryKey: ["vehicles"],
     queryFn: getVehicles,
   });
 
-  const { data: employees = [], isLoading: isLoadingEmployees } = useQuery<Employee[], Error>({
+  const { data: employees = [], isLoading: isLoadingEmployees, error: employeesError } = useQuery<Employee[], Error>({
     queryKey: ["employees"],
     queryFn: getEmployees,
   });
 
   const upcomingBookings = bookings
-    .filter(b => new Date(b.pickupDate) >= new Date() && (b.status === "Pending" || b.status === "Confirmed"))
-    .sort((a, b) => new Date(a.pickupDate).getTime() - new Date(b.pickupDate).getTime())
+    .filter(b => {
+        try {
+            return new Date(b.pickupDate) >= new Date() && (b.status === "Pending" || b.status === "Confirmed");
+        } catch (e) {
+            return false; 
+        }
+    })
+    .sort((a, b) => {
+        try {
+            return new Date(a.pickupDate).getTime() - new Date(b.pickupDate).getTime();
+        } catch (e) {
+            return 0;
+        }
+    })
     .slice(0, 3);
 
   const summaryStats: DashboardCardItem[] = [
-    { title: "Total Bookings", value: isLoadingBookings ? "..." : bookings.length.toString(), icon: CalendarCheck, trend: bookings.length > 0 ? `+${bookings.filter(b => b.status === "Pending").length} pending` : "", actionLabel: "View Bookings", actionHref: "/agency/dashboard/bookings" },
-    { title: "Active Employees", value: isLoadingEmployees ? "..." : employees.length.toString(), icon: Users, actionLabel: "Manage Employees", actionHref: "/agency/dashboard/employees" },
-    { title: "Available Vehicles", value: isLoadingVehicles ? "..." : vehicles.filter(v => v.status === 'Available').length.toString(), icon: Truck, trend: `${vehicles.filter(v => v.status !== 'Available').length} in use/maintenance`, actionLabel: "Manage Vehicles", actionHref: "/agency/dashboard/vehicles" },
-    { title: "Monthly Revenue", value: "$0", icon: DollarSign, trend: "Feature coming soon" }, // Placeholder, actual revenue calculation is complex
+    { 
+      title: "Total Bookings", 
+      value: isLoadingBookings ? "..." : bookings.length.toString(), 
+      icon: CalendarCheck, 
+      trend: isLoadingBookings ? "" : (bookings.filter(b => b.status === "Pending").length > 0 ? `+${bookings.filter(b => b.status === "Pending").length} pending` : "No pending"), 
+      actionLabel: "View Bookings", 
+      actionHref: "/agency/dashboard/bookings" 
+    },
+    { 
+      title: "Active Employees", 
+      value: isLoadingEmployees ? "..." : employees.length.toString(), 
+      icon: Users, 
+      actionLabel: "Manage Employees", 
+      actionHref: "/agency/dashboard/employees" 
+    },
+    { 
+      title: "Available Vehicles", 
+      value: isLoadingVehicles ? "..." : vehicles.filter(v => v.status === 'Available').length.toString(), 
+      icon: Truck, 
+      trend: isLoadingVehicles ? "" : `${vehicles.filter(v => v.status !== 'Available').length} in use/maintenance`, 
+      actionLabel: "Manage Vehicles", 
+      actionHref: "/agency/dashboard/vehicles" 
+    },
+    { title: "Monthly Revenue", value: "$0", icon: DollarSign, trend: "Feature coming soon" }, // Placeholder
   ];
   
-  const safeFormat = (date: Date | undefined | string, formatString: string) => {
-    if (!date) return "N/A";
+  const safeFormat = (dateInput: Date | string | undefined, formatString: string) => {
+    if (!dateInput) return "N/A";
     try {
-      const d = new Date(date);
-      if (isNaN(d.getTime())) return "Invalid Date";
-      return format(d, formatString);
+      const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+      if (isNaN(date.getTime())) return "Invalid Date";
+      return format(date, formatString);
     } catch {
       return "Invalid Date";
     }
-  }
+  };
+
+  const pageError = bookingsError || vehiclesError || employeesError;
 
   return (
     <>
@@ -75,11 +109,11 @@ export default function AgencyDashboardOverviewPage() {
         ))}
       </div>
 
-      {bookingsError && (
+      {pageError && (
         <Alert variant="destructive" className="mb-8">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error Fetching Bookings</AlertTitle>
-          <AlertDescription>{bookingsError.message}</AlertDescription>
+          <AlertTitle>Error Fetching Dashboard Data</AlertTitle>
+          <AlertDescription>{pageError.message || "Could not load some dashboard data. Please try again later."}</AlertDescription>
         </Alert>
       )}
 
@@ -144,7 +178,8 @@ export default function AgencyDashboardOverviewPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="outline" size="sm" asChild>
-                          <Link href={`/agency/dashboard/bookings?bookingId=${booking.id}`}> 
+                          {/* Link to booking details page - assuming bookings page can handle query param for specific booking */}
+                          <Link href={`/agency/dashboard/bookings#${booking.id}`}> 
                             View <ExternalLink className="ml-2 h-3 w-3" />
                           </Link>
                         </Button>
@@ -154,7 +189,7 @@ export default function AgencyDashboardOverviewPage() {
                 </TableBody>
               </Table>
             ) : (
-              <p className="text-muted-foreground">No upcoming bookings.</p>
+              <p className="text-muted-foreground py-4 text-center">No upcoming bookings found.</p>
             )}
           </CardContent>
         </Card>
@@ -188,5 +223,4 @@ export default function AgencyDashboardOverviewPage() {
     </>
   );
 }
-
     
