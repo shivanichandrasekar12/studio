@@ -27,7 +27,7 @@ const fromFirestore = (docSnapshot: any): Review => {
   } as Review;
 };
 
-// Get all reviews (e.g., for agency to see all customer_feedback they've logged)
+// Get reviews of a specific type (e.g., for agency to see all 'customer_feedback' they've logged)
 export const getReviews = async (reviewType?: Review['reviewType']): Promise<Review[]> => {
   let q;
   if (reviewType) {
@@ -41,10 +41,11 @@ export const getReviews = async (reviewType?: Review['reviewType']): Promise<Rev
 
 // Get reviews submitted by a specific customer
 export const getCustomerSubmittedReviews = async (customerId: string): Promise<Review[]> => {
+  if (!customerId) return [];
   const q = query(
     collection(db, REVIEWS_COLLECTION), 
     where("reviewerId", "==", customerId),
-    where("reviewType", "==", "user_submitted"),
+    where("reviewType", "==", "user_submitted"), // Ensure we only get reviews submitted by the user themselves
     orderBy("createdAt", "desc")
   );
   const snapshot = await getDocs(q);
@@ -55,7 +56,7 @@ export const getCustomerSubmittedReviews = async (customerId: string): Promise<R
 export const addReview = async (reviewData: Omit<Review, "id" | "createdAt"> & { createdAt?: Date }): Promise<string> => {
   const docRef = await addDoc(collection(db, REVIEWS_COLLECTION), {
     ...reviewData,
-    createdAt: reviewData.createdAt ? Timestamp.fromDate(reviewData.createdAt) : Timestamp.now(),
+    createdAt: reviewData.createdAt instanceof Date ? Timestamp.fromDate(reviewData.createdAt) : Timestamp.now(),
   });
   return docRef.id;
 };
@@ -87,16 +88,19 @@ export const addCustomerSubmittedReview = async (
   },
   user: User
 ): Promise<string> => {
+  if (!user || !user.uid) {
+    throw new Error("User must be authenticated to submit a review.");
+  }
   const reviewData: Omit<Review, "id" | "createdAt"> = {
     bookingId: reviewPayload.bookingId,
     reviewerId: user.uid,
-    customerName: user.displayName || user.email || "Anonymous",
+    customerName: user.displayName || user.email?.split('@')[0] || "Anonymous Customer",
     rating: reviewPayload.rating,
     comment: reviewPayload.comment,
     title: reviewPayload.title,
     avatarUrl: user.photoURL || `https://placehold.co/40x40.png?text=${(user.displayName || user.email || "A").substring(0,1).toUpperCase()}`,
-    reviewType: 'user_submitted',
-    createdAt: new Date(), // Will be converted to Timestamp in addReview
+    reviewType: 'user_submitted', // This is crucial
+    createdAt: new Date(), // Will be converted to Timestamp by the generic addReview
   };
   return addReview(reviewData);
 };
