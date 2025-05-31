@@ -187,12 +187,9 @@ export default function BookNewRidePage() {
         .filter(loc => loc !== "")
         .map(loc => ({ location: loc, stopover: true }));
 
-    const bookingData: Omit<Booking, "id" | "customerName" | "customerEmail" | "customerPhone"> & { customerId: string } = {
+    const bookingPayload: Partial<Booking> & { customerId: string } = { // Using Partial<Booking> for flexibility
       pickupLocation,
       dropoffLocation,
-      waypoints: finalWaypoints.length > 0 ? finalWaypoints : undefined,
-      estimatedDistance: distance || undefined, 
-      estimatedDuration: duration || undefined, 
       pickupDate: fullPickupDate,
       dropoffDate: fullDropoffDate, 
       passengers: parseInt(passengers, 10) || 1,
@@ -202,7 +199,17 @@ export default function BookNewRidePage() {
       customerId: currentUser.uid,
     };
 
-    addBookingMutation(bookingData);
+    if (finalWaypoints.length > 0) {
+      bookingPayload.waypoints = finalWaypoints;
+    }
+    if (distance) {
+      bookingPayload.estimatedDistance = distance;
+    }
+    if (duration) {
+      bookingPayload.estimatedDuration = duration;
+    }
+
+    addBookingMutation(bookingPayload as Omit<Booking, "id" | "customerName" | "customerEmail" | "customerPhone"> & { customerId: string });
   };
 
   let requestRideDisabled = true;
@@ -223,7 +230,7 @@ export default function BookNewRidePage() {
       requestRideHelperText = "Google Maps API failed to load. You can request the ride without a route estimate.";
     } else if (!isLoaded) { 
       requestRideDisabled = true; 
-      requestRideHelperText = "Google Maps is initializing. Please wait, or try calculating the route once the 'Calculate Route' button is enabled.";
+      requestRideHelperText = `Google Maps is ${isCalculatingRoute ? 'calculating...' : 'initializing...'}. Please wait.`;
     } else { 
       if (distance && duration) { 
         requestRideDisabled = false;
@@ -285,7 +292,7 @@ export default function BookNewRidePage() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-6">
-            {formCalculationError && !loadError && ( 
+            {formCalculationError && !mapInitializationErrorMessage && ( 
               <Alert variant="destructive" className="mt-4">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Route Calculation Info</AlertTitle> 
@@ -354,7 +361,7 @@ export default function BookNewRidePage() {
                 </Button>
             </div>
             
-            {(distance || duration) && !(formCalculationError && (formCalculationError.includes("failed") || formCalculationError.includes("unavailable"))) && ( 
+            {(distance || duration) && !(formCalculationError && (formCalculationError.includes("failed") || formCalculationError.includes("unavailable") || formCalculationError.includes("loading/initializing"))) && ( 
                 <Card className="bg-muted/50 p-4">
                     <CardHeader className="p-2 pb-1">
                         <CardTitle className="text-lg flex items-center"><Timer className="mr-2 h-5 w-5 text-primary"/>Route Estimate</CardTitle>

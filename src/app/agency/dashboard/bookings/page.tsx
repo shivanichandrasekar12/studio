@@ -184,28 +184,39 @@ export default function AgencyBookingsPage() {
       return;
     }
 
-    const waypointsToSave: Waypoint[] = formWaypoints.map(loc => ({ location: loc, stopover: true }));
+    const waypointsToSave: Waypoint[] = formWaypoints.join(',').split(',') // Handle comma-separated string
+      .map(loc => loc.trim())
+      .filter(loc => loc !== "")
+      .map(loc => ({ location: loc, stopover: true }));
 
-    const bookingPayload: Omit<Booking, "id"> & { agencyId: string; customerId?: string } = {
+    const bookingPayloadBase: Partial<Booking> & { agencyId: string } = {
       customerName, customerEmail, customerPhone,
       pickupDate, dropoffDate, pickupLocation, dropoffLocation,
-      waypoints: waypointsToSave.length > 0 ? waypointsToSave : undefined,
-      estimatedDistance: formEstimatedDistance || undefined,
-      estimatedDuration: formEstimatedDuration || undefined,
       vehicleType, status, notes,
       agencyId: currentUser.uid, 
-      customerId: formCustomerId, 
       passengers: 1, // Default or add a field for this
     };
+    
+    if (formCustomerId) {
+      bookingPayloadBase.customerId = formCustomerId;
+    }
+    if (waypointsToSave.length > 0) {
+      bookingPayloadBase.waypoints = waypointsToSave;
+    }
+    if (formEstimatedDistance) {
+      bookingPayloadBase.estimatedDistance = formEstimatedDistance;
+    }
+    if (formEstimatedDuration) {
+      bookingPayloadBase.estimatedDuration = formEstimatedDuration;
+    }
+    
+    const finalPayload = bookingPayloadBase as Omit<Booking, "id"> & { agencyId: string; customerId?: string };
+
 
     if (editingBooking) {
-      const updatePayload = { ...bookingPayload };
-      if (editingBooking.agencyId && !updatePayload.agencyId) {
-        updatePayload.agencyId = editingBooking.agencyId;
-      }
-      updateBookingMutation({id: editingBooking.id, data: updatePayload});
+      updateBookingMutation({id: editingBooking.id, data: finalPayload});
     } else {
-      addBookingMutation(bookingPayload);
+      addBookingMutation(finalPayload);
     }
   };
 
