@@ -1,3 +1,4 @@
+
 "use client";
 
 import { PageHeader } from "@/components/page-header";
@@ -5,20 +6,68 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { Booking } from "@/types";
-import { ShoppingCart, CalendarDays } from "lucide-react"; // Removed MapPin as it's not directly used in this simplified version
+import { ShoppingCart, CalendarDays, Loader2, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-
-// Mock data
-const mockCustomerBookings: Booking[] = [
-  { id: "CB001", customerName: "Current User", customerEmail: "customer@example.com", customerPhone: "555-1234", pickupDate: new Date(Date.now() - 86400000 * 2), dropoffDate: new Date(Date.now() - 86400000 * 1.8), pickupLocation: "123 Main St, Cityville", dropoffLocation: "City Airport", vehicleType: "Sedan", status: "Completed", notes: "Flight BA245" },
-  { id: "CB002", customerName: "Current User", customerEmail: "customer@example.com", customerPhone: "555-1234", pickupDate: new Date(Date.now() + 86400000 * 3), dropoffDate: new Date(Date.now() + 86400000 * 3.2), pickupLocation: "Grand Hotel", dropoffLocation: "Conference Center", vehicleType: "SUV", status: "Confirmed", notes: "VIP Guest" },
-  { id: "CB003", customerName: "Current User", customerEmail: "customer@example.com", customerPhone: "555-1234", pickupDate: new Date(Date.now() + 86400000 * 7), dropoffDate: new Date(Date.now() + 86400000 * 7.1), pickupLocation: "Downtown Station", dropoffLocation: "Seaside Resort", vehicleType: "Van", status: "Pending" },
-];
+import { useQuery } from "@tanstack/react-query";
+import { getCustomerBookings } from "@/lib/services/bookingsService";
+import { auth } from "@/lib/firebase";
+import { useState, useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function MyBookingsPage() {
-  const bookings = mockCustomerBookings;
+  const [currentUser, setCurrentUser] = useState(auth.currentUser);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const customerId = currentUser?.uid;
+
+  const { data: bookings = [], isLoading, error } = useQuery<Booking[], Error>({
+    queryKey: ["customerBookings", customerId],
+    queryFn: () => {
+      if (!customerId) return Promise.resolve([]); // Don't fetch if no customerId
+      return getCustomerBookings(customerId);
+    },
+    enabled: !!customerId, // Only run query if customerId is available
+  });
+
+  const safeFormat = (dateInput: Date | string | undefined, formatString: string) => {
+    if (!dateInput) return "N/A";
+    try {
+      const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+      if (isNaN(date.getTime())) return "Invalid Date";
+      return format(date, formatString);
+    } catch {
+      return "Invalid Date";
+    }
+  };
+
+  if (!currentUser && !auth.currentUser) { // Check auth.currentUser for initial load robustness
+     return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2">Loading user data...</p>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Error Fetching Bookings</AlertTitle>
+        <AlertDescription>{error.message || "Could not load your bookings. Please try again later."}</AlertDescription>
+      </Alert>
+    );
+  }
+
 
   return (
     <>
@@ -30,11 +79,35 @@ export default function MyBookingsPage() {
         <CardHeader>
           <CardTitle className="flex items-center"><ShoppingCart className="mr-2 h-5 w-5 text-primary" />Booking History</CardTitle>
           <CardDescription>
-            {bookings.length > 0 ? `You have ${bookings.length} booking(s).` : "You haven't made any bookings yet."}
+            {isLoading ? "Loading your bookings..." : 
+             bookings.length > 0 ? `You have ${bookings.length} booking(s).` : "You haven't made any bookings yet."}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {bookings.length > 0 ? (
+          {isLoading ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date & Time</TableHead>
+                  <TableHead>Pickup</TableHead>
+                  <TableHead>Drop-off</TableHead>
+                  <TableHead>Vehicle</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[...Array(3)].map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : bookings.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -49,8 +122,8 @@ export default function MyBookingsPage() {
                 {bookings.map((booking) => (
                   <TableRow key={booking.id}>
                     <TableCell>
-                      <div className="font-medium">{format(new Date(booking.pickupDate), "PP")}</div>
-                      <div className="text-xs text-muted-foreground">{format(new Date(booking.pickupDate), "p")}</div>
+                      <div className="font-medium">{safeFormat(booking.pickupDate, "PP")}</div>
+                      <div className="text-xs text-muted-foreground">{safeFormat(booking.pickupDate, "p")}</div>
                     </TableCell>
                     <TableCell>{booking.pickupLocation}</TableCell>
                     <TableCell>{booking.dropoffLocation}</TableCell>

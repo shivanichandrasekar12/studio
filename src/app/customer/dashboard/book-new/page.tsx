@@ -11,59 +11,115 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, Car } from "lucide-react";
-import React, { useState, type FormEvent } from "react"; // Added FormEvent
-import { useToast } from "@/hooks/use-toast"; // Added useToast
+import { Calendar as CalendarIcon, Clock, Users, MapPin, Car, Loader2, AlertCircle } from "lucide-react";
+import React, { useState, type FormEvent, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { addBooking } from "@/lib/services/bookingsService";
+import { auth } from "@/lib/firebase";
+import type { Booking } from "@/types";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function BookNewRidePage() {
-  const { toast } = useToast(); // Initialized toast
+  const { toast } = useToast();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [currentUser, setCurrentUser] = useState(auth.currentUser);
 
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
   const [pickupDate, setPickupDate] = useState<Date | undefined>(new Date());
-  const [pickupTime, setPickupTime] = useState<string>("10:00");
+  const [pickupTime, setPickupTime] = useState<string>("10:00"); // Stored as string, combine with date before saving
   const [passengers, setPassengers] = useState<string>("1");
   const [vehicleType, setVehicleType] = useState("");
   const [notes, setNotes] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const { mutate: addBookingMutation, isPending: isAddingBooking } = useMutation({
+    mutationFn: addBooking,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customerBookings", currentUser?.uid] });
+      queryClient.invalidateQueries({ queryKey: ["bookings"] }); // Invalidate general bookings too
+      toast({
+        title: "Ride Request Submitted!",
+        description: "Your request has been sent. Redirecting to My Bookings...",
+      });
+      router.push("/customer/dashboard/my-bookings");
+    },
+    onError: (error) => {
+      console.error("Booking submission error:", error);
+      setFormError("Failed to submit your booking request. Please try again.");
+      toast({
+        title: "Submission Failed",
+        description: error.message || "Could not submit your booking request.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    
-    if (!pickupDate) {
-      toast({
-        title: "Missing Information",
-        description: "Please select a pickup date.",
-        variant: "destructive",
-      });
+    setFormError(null);
+
+    if (!currentUser) {
+      setFormError("You must be logged in to make a booking.");
+      toast({ title: "Not Logged In", description: "Please log in to book a ride.", variant: "destructive" });
       return;
     }
-    
-    const bookingDetails = {
+    if (!pickupDate) {
+      setFormError("Please select a pickup date.");
+      toast({ title: "Missing Information", description: "Please select a pickup date.", variant: "destructive" });
+      return;
+    }
+    if (!pickupTime) {
+        setFormError("Please select a pickup time.");
+        toast({ title: "Missing Information", description: "Please select a pickup time.", variant: "destructive" });
+        return;
+    }
+
+    // Combine date and time
+    const [hours, minutes] = pickupTime.split(':').map(Number);
+    const fullPickupDate = new Date(pickupDate);
+    fullPickupDate.setHours(hours, minutes, 0, 0);
+
+    // For dropoffDate, let's assume it's the same day for now or set a sensible default
+    // A more complex app might have a separate dropoff date/time picker
+    const fullDropoffDate = new Date(fullPickupDate); 
+    fullDropoffDate.setHours(fullPickupDate.getHours() + 1); // Example: 1 hour later
+
+    const bookingData: Omit<Booking, "id" | "customerName" | "customerEmail" | "customerPhone"> & { customerId: string } = {
       pickupLocation,
       dropoffLocation,
-      pickupDate: format(pickupDate, "PPP"), // Format date for logging
-      pickupTime,
-      passengers,
-      vehicleType,
+      pickupDate: fullPickupDate,
+      dropoffDate: fullDropoffDate, 
+      passengers: parseInt(passengers, 10) || 1,
+      vehicleType: vehicleType || "Any",
       notes,
+      status: "Pending",
+      customerId: currentUser.uid,
+      // customerName, customerEmail, customerPhone will be denormalized or joined later
     };
 
-    console.log("Ride Request Details:", bookingDetails);
-
-    toast({
-      title: "Ride Request Submitted!",
-      description: "Your request has been sent. We'll notify you once an agency confirms.",
-    });
-    
-    // Optionally, reset form fields here
-    // setPickupLocation("");
-    // setDropoffLocation("");
-    // setPickupDate(new Date());
-    // setPickupTime("10:00");
-    // setPassengers("1");
-    // setVehicleType("");
-    // setNotes("");
+    addBookingMutation(bookingData);
   };
+
+  if (!currentUser && !auth.currentUser) { // Check auth.currentUser for initial load
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2">Loading user data...</p>
+      </div>
+    );
+  }
+
 
   return (
     <>
@@ -78,8 +134,15 @@ export default function BookNewRidePage() {
             Please provide your travel details. All fields marked with * are required.
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit}> {/* Form tag added here */}
+        <form onSubmit={handleSubmit}>
           <CardContent className="space-y-6">
+            {formError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{formError}</AlertDescription>
+              </Alert>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="pickupLocation" className="flex items-center"><MapPin className="mr-2 h-4 w-4 text-primary" />Pickup Location *</Label>
@@ -89,6 +152,7 @@ export default function BookNewRidePage() {
                   value={pickupLocation}
                   onChange={(e) => setPickupLocation(e.target.value)}
                   required 
+                  disabled={isAddingBooking}
                 />
               </div>
               <div className="space-y-2">
@@ -99,6 +163,7 @@ export default function BookNewRidePage() {
                   value={dropoffLocation}
                   onChange={(e) => setDropoffLocation(e.target.value)}
                   required 
+                  disabled={isAddingBooking}
                 />
               </div>
             </div>
@@ -114,13 +179,20 @@ export default function BookNewRidePage() {
                         "w-full justify-start text-left font-normal",
                         !pickupDate && "text-muted-foreground"
                       )}
+                      disabled={isAddingBooking}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {pickupDate ? format(pickupDate, "PPP") : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={pickupDate} onSelect={setPickupDate} initialFocus disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}/>
+                    <Calendar 
+                        mode="single" 
+                        selected={pickupDate} 
+                        onSelect={setPickupDate} 
+                        initialFocus 
+                        disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
+                    />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -132,6 +204,7 @@ export default function BookNewRidePage() {
                   value={pickupTime}
                   onChange={(e) => setPickupTime(e.target.value)}
                   required 
+                  disabled={isAddingBooking}
                 />
               </div>
             </div>
@@ -147,6 +220,7 @@ export default function BookNewRidePage() {
                   value={passengers}
                   onChange={(e) => setPassengers(e.target.value)}
                   required 
+                  disabled={isAddingBooking}
                 />
               </div>
               <div className="space-y-2">
@@ -156,6 +230,7 @@ export default function BookNewRidePage() {
                   placeholder="e.g., Sedan, SUV" 
                   value={vehicleType}
                   onChange={(e) => setVehicleType(e.target.value)}
+                  disabled={isAddingBooking}
                 />
               </div>
             </div>
@@ -167,22 +242,22 @@ export default function BookNewRidePage() {
                 placeholder="Any special requests or information (e.g., flight number, luggage details)..." 
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
+                disabled={isAddingBooking}
               />
             </div>
 
             <div className="pt-4">
-              <Button type="submit" className="w-full md:w-auto">
+              <Button type="submit" className="w-full md:w-auto" disabled={isAddingBooking || !currentUser}>
+                {isAddingBooking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Request Ride
               </Button>
               <p className="text-xs text-muted-foreground mt-2">
-                Your request will be sent to available agencies. You'll be notified once an agency confirms your ride.
+                Your request will be saved and marked as pending. Agencies will be able to view and confirm your ride.
               </p>
             </div>
           </CardContent>
-        </form> {/* Form tag closed here */}
+        </form>
       </Card>
     </>
   );
 }
-
-    
