@@ -37,12 +37,15 @@ export default function AdminLoginPage() {
       });
       router.push("/admin/dashboard");
     } catch (error: any) {
-      console.error("Admin Login failed:", error);
       let errorMessage = "An unknown error occurred. Please try again.";
       if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
         errorMessage = "Invalid email or password. Please try again.";
+        console.info(`Admin login attempt failed (handled): ${error.code}`);
       } else if (error.code === "auth/invalid-email") {
         errorMessage = "The email address is not valid.";
+        console.info(`Admin login attempt failed (handled): ${error.code}`);
+      } else {
+        console.error("Admin Login failed with unexpected error:", error);
       }
       toast({
         title: "Login Failed",
