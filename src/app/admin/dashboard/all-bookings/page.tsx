@@ -5,14 +5,13 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, CheckCircle, XCircle, ListFilter, Loader2, AlertCircle } from "lucide-react";
+import { CalendarDays, CheckCircle, XCircle, Hourglass, AlertCircle, Loader2 } from "lucide-react"; // Added Hourglass
 import { useQuery } from "@tanstack/react-query";
 import { getBookings } from "@/lib/services/bookingsService";
 import type { Booking } from "@/types";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button"; // Added for potential future actions
 
 export default function AdminAllBookingsPage() {
   const { data: bookings = [], isLoading: isLoadingBookings, error: bookingsError } = useQuery<Booking[], Error>({
@@ -36,6 +35,7 @@ export default function AdminAllBookingsPage() {
 
   const totalBookingsToday = isLoadingBookings ? "..." : bookings.filter(b => safeFormat(b.pickupDate, "yyyy-MM-dd") === todayFormatted).length;
   const confirmedBookingsCount = isLoadingBookings ? "..." : bookings.filter(b => b.status === "Confirmed").length;
+  const pendingBookingsCount = isLoadingBookings ? "..." : bookings.filter(b => b.status === "Pending").length;
   const cancelledBookingsCount = isLoadingBookings ? "..." : bookings.filter(b => b.status === "Cancelled" || b.status === "Denied").length;
 
   if (bookingsError) {
@@ -54,12 +54,9 @@ export default function AdminAllBookingsPage() {
     <>
       <PageHeader title="Platform-Wide Bookings" description="View and manage all bookings across the platform.">
         {/* Placeholder for future filter button or actions */}
-        {/* <Button variant="outline" disabled>
-          <ListFilter className="mr-2 h-4 w-4" /> Filter Bookings
-        </Button> */}
       </PageHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6"> {/* Adjusted to lg:grid-cols-4 */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center"><CalendarDays className="mr-2 h-5 w-5 text-primary"/>Bookings Today</CardTitle>
@@ -70,10 +67,18 @@ export default function AdminAllBookingsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center"><CheckCircle className="mr-2 h-5 w-5 text-green-600"/>Confirmed Bookings</CardTitle>
+            <CardTitle className="text-lg flex items-center"><CheckCircle className="mr-2 h-5 w-5 text-green-600"/>Confirmed</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoadingBookings ? <Skeleton className="h-8 w-16" /> : <p className="text-2xl font-bold">{confirmedBookingsCount}</p>}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center"><Hourglass className="mr-2 h-5 w-5 text-yellow-600"/>Pending</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoadingBookings ? <Skeleton className="h-8 w-16" /> : <p className="text-2xl font-bold">{pendingBookingsCount}</p>}
           </CardContent>
         </Card>
         <Card>
