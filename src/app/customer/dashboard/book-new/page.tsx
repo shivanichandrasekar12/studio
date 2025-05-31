@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, Clock, Users, MapPin, Car, Loader2, AlertCircle, Route, Timer, PlusCircle, MinusCircle } from "lucide-react";
-import React, { useState, type FormEvent, useEffect, useCallback } from "react";
+import React, { useState, type FormEvent, useEffect, useCallback, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -20,9 +20,9 @@ import { addBooking } from "@/lib/services/bookingsService";
 import { auth } from "@/lib/firebase";
 import type { Booking, Waypoint } from "@/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useJsApiLoader, DirectionsService } from "@react-google-maps/api";
+import { useJsApiLoader } from "@react-google-maps/api";
 
-const libraries: ("places" | "directions")[] = ["places", "directions"];
+const initialLibraries = ["places", "directions"] as ("places" | "directions")[];
 
 export default function BookNewRidePage() {
   const { toast } = useToast();
@@ -32,7 +32,7 @@ export default function BookNewRidePage() {
 
   const [pickupLocation, setPickupLocation] = useState("Eiffel Tower, Paris, France");
   const [dropoffLocation, setDropoffLocation] = useState("Louvre Museum, Paris, France");
-  const [waypointsInputs, setWaypointsInputs] = useState<string[]>([""]); // Store waypoint addresses as strings
+  const [waypointsInputs, setWaypointsInputs] = useState<string[]>([""]);
   const [pickupDate, setPickupDate] = useState<Date | undefined>(new Date());
   const [pickupTime, setPickupTime] = useState<string>("10:00");
   const [passengers, setPassengers] = useState<string>("1");
@@ -45,9 +45,11 @@ export default function BookNewRidePage() {
   const [duration, setDuration] = useState<string | null>(null);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
 
+  const memoizedLibraries = useMemo(() => initialLibraries, []);
+
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
-    libraries,
+    libraries: memoizedLibraries,
   });
 
   useEffect(() => {
@@ -131,8 +133,8 @@ export default function BookNewRidePage() {
             totalDistance += leg.distance?.value || 0;
             totalDuration += leg.duration?.value || 0;
         });
-        setDistance((totalDistance / 1000).toFixed(1) + " km"); // Convert meters to km
-        setDuration(Math.ceil(totalDuration / 60) + " mins"); // Convert seconds to minutes
+        setDistance((totalDistance / 1000).toFixed(1) + " km"); 
+        setDuration(Math.ceil(totalDuration / 60) + " mins"); 
       } else {
          setFormError("Could not calculate route. Check locations.");
       }
@@ -170,12 +172,11 @@ export default function BookNewRidePage() {
     fullPickupDate.setHours(hours, minutes, 0, 0);
 
     const fullDropoffDate = new Date(fullPickupDate);
-    // Approximate dropoff time based on calculated duration
     const durationMinutes = parseInt(duration.replace(' mins', ''), 10);
     if (!isNaN(durationMinutes)) {
         fullDropoffDate.setMinutes(fullPickupDate.getMinutes() + durationMinutes);
     } else {
-        fullDropoffDate.setHours(fullPickupDate.getHours() + 1); // Fallback to 1 hour
+        fullDropoffDate.setHours(fullPickupDate.getHours() + 1); 
     }
     
     const finalWaypoints: Waypoint[] = waypointsInputs
@@ -211,13 +212,19 @@ export default function BookNewRidePage() {
   }
   
   if (loadError) {
-    return (
+    let detailedErrorMessage = `Could not load Google Maps. Please check your internet connection and ensure your Google Maps API key is correctly set in the environment variables. Original error: ${loadError.message}`;
+    if (loadError.message && loadError.message.includes("library directions is unknown")) {
+        detailedErrorMessage = "Map Error: The 'Directions' library failed to load. Please ensure your Google Maps API key has both 'Maps JavaScript API' AND 'Directions API' enabled in your Google Cloud Console. Also, verify that there are no API key restrictions preventing their use for your current domain/localhost, and confirm the API key itself is correct.";
+    } else if (loadError.message && (loadError.message.includes("ApiNotActivatedMapError") || loadError.message.includes("InvalidKeyMapError"))) {
+        detailedErrorMessage = "Map Error: The Google Maps API key is invalid or the Maps JavaScript API is not activated. Please check your API key and ensure 'Maps JavaScript API' is enabled in your Google Cloud Console.";
+    }
+     return (
          <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Map Error</AlertTitle>
-            <AlertDescription>Could not load Google Maps. Please check your API key and internet connection. {loadError.message}</AlertDescription>
+            <AlertTitle>Map Initialization Error</AlertTitle>
+            <AlertDescription>{detailedErrorMessage}</AlertDescription>
         </Alert>
-    )
+    );
   }
 
 
@@ -286,7 +293,7 @@ export default function BookNewRidePage() {
                             </Button>
                         )}
                          {index === waypointsInputs.length - 1 && (
-                             <Button type="button" variant="ghost" size="icon" onClick={addWaypointField} disabled={isAddingBooking || isCalculatingRoute || waypointsInputs.length >= 5} aria-label="Add stop"> {/* Limit stops e.g. to 5 */}
+                             <Button type="button" variant="ghost" size="icon" onClick={addWaypointField} disabled={isAddingBooking || isCalculatingRoute || waypointsInputs.length >= 5} aria-label="Add stop"> 
                                 <PlusCircle className="h-5 w-5 text-primary" />
                             </Button>
                         )}
