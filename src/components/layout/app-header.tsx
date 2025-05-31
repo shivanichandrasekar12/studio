@@ -19,8 +19,11 @@ import { useToast } from "@/hooks/use-toast";
 import type { NotificationItem, UserRole } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAgencyNotifications, markAgencyNotificationAsRead } from "@/lib/services/notificationsService"; 
-import type { User } from "firebase/auth"; // Import User type
+import { 
+  getAgencyNotifications, markAgencyNotificationAsRead,
+  getCustomerNotifications, markCustomerNotificationAsRead
+} from "@/lib/services/notificationsService"; 
+import type { User } from "firebase/auth";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
@@ -28,7 +31,7 @@ import { auth } from "@/lib/firebase";
 interface AppHeaderProps {
   title: string;
   userRole: UserRole;
-  currentUser: User | null; // Add currentUser prop
+  currentUser: User | null;
 }
 
 export function AppHeader({ title, userRole, currentUser }: AppHeaderProps) {
@@ -36,27 +39,43 @@ export function AppHeader({ title, userRole, currentUser }: AppHeaderProps) {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const customerId = userRole === 'customer' ? currentUser?.uid : undefined;
 
   const { data: headerNotifications = [], isLoading: isLoadingHeaderNotifications } = useQuery<NotificationItem[], Error>({
-    queryKey: ["headerNotifications", userRole], 
+    queryKey: ["headerNotifications", userRole, customerId], 
     queryFn: () => {
+      const notificationLimit = 5;
       if (userRole === 'agency') {
-        return getAgencyNotifications(5); 
+        return getAgencyNotifications(notificationLimit); 
+      }
+      if (userRole === 'customer' && customerId) {
+        return getCustomerNotifications(customerId, notificationLimit);
       }
       return Promise.resolve([]); 
     },
-    enabled: !!userRole && !!currentUser, // Only run if userRole and currentUser are available
+    enabled: !!currentUser, 
   });
 
-
-  const { mutate: markAsReadMutation } = useMutation({
-    mutationFn: markAgencyNotificationAsRead, 
+  const { mutate: markNotificationAsReadMutation } = useMutation({
+    mutationFn: (notificationId: string) => {
+      if (userRole === 'agency') {
+        return markAgencyNotificationAsRead(notificationId);
+      }
+      if (userRole === 'customer') {
+        return markCustomerNotificationAsRead(notificationId);
+      }
+      return Promise.resolve(); // Should not happen if role is defined
+    },
     onSuccess: (data, notificationId) => {
-      queryClient.invalidateQueries({ queryKey: ["headerNotifications", userRole] });
-      queryClient.invalidateQueries({ queryKey: ["agencyNotifications"] }); 
+      queryClient.invalidateQueries({ queryKey: ["headerNotifications", userRole, customerId] });
+      if (userRole === 'agency') {
+        queryClient.invalidateQueries({ queryKey: ["agencyNotifications"] }); 
+      }
+      if (userRole === 'customer' && customerId) {
+        queryClient.invalidateQueries({ queryKey: ["customerNotifications", customerId] });
+      }
     }
   });
-
 
   const unreadCount = headerNotifications.filter(n => !n.read).length;
   
@@ -90,8 +109,8 @@ export function AppHeader({ title, userRole, currentUser }: AppHeaderProps) {
   };
 
   const handleNotificationClick = (notification: NotificationItem) => {
-    if (!notification.read && userRole === 'agency') { 
-      markAsReadMutation(notification.id);
+    if (!notification.read) { 
+      markNotificationAsReadMutation(notification.id);
     }
     toast({
       title: `Notification: ${notification.title}`,
@@ -99,6 +118,9 @@ export function AppHeader({ title, userRole, currentUser }: AppHeaderProps) {
     });
     if (notification.link) {
       router.push(notification.link); 
+    } else {
+       // If no specific link, navigate to the main notifications page for that role
+       router.push(`${baseDashboardPath}/notifications`);
     }
   };
 
@@ -118,7 +140,6 @@ export function AppHeader({ title, userRole, currentUser }: AppHeaderProps) {
   const getAvatarSrc = () => {
      return currentUser?.photoURL || `https://placehold.co/40x40.png?text=${getAvatarFallback()}`;
   }
-
 
   return (
     <header className="flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 sticky top-0 z-30">
