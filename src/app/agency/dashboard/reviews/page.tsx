@@ -29,15 +29,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
+import { auth } from "@/lib/firebase"; // For reviewerId if needed
 
 
 export default function AgencyReviewsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const currentUser = auth.currentUser; // Optional: for reviewerId
 
   const { data: reviews = [], isLoading: isLoadingReviews, error: reviewsError } = useQuery<Review[], Error>({
-    queryKey: ["reviews"],
-    queryFn: getReviews,
+    queryKey: ["agencyLoggedReviews"], // Specific key for reviews logged by agency
+    queryFn: () => getReviews('customer_feedback'), // Fetch only 'customer_feedback' reviews
   });
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -49,11 +51,12 @@ export default function AgencyReviewsPage() {
   const [formReviewTitle, setFormReviewTitle] = useState("");
   const [formComment, setFormComment] = useState("");
   const [formAvatarUrl, setFormAvatarUrl] = useState("");
+  const [formBookingId, setFormBookingId] = useState("");
 
   const { mutate: addReviewMutation, isPending: isAddingReview } = useMutation({
     mutationFn: addReview,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reviews"] });
+      queryClient.invalidateQueries({ queryKey: ["agencyLoggedReviews"] });
       toast({ title: "Customer Review Logged", description: "The customer's feedback has been saved." });
       resetForm();
       setIsFormOpen(false);
@@ -66,7 +69,7 @@ export default function AgencyReviewsPage() {
   const { mutate: updateReviewMutation, isPending: isUpdatingReview } = useMutation({
     mutationFn: async (reviewPayload: { id: string; data: Partial<Omit<Review, "id">>}) => updateReview(reviewPayload.id, reviewPayload.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reviews"] });
+      queryClient.invalidateQueries({ queryKey: ["agencyLoggedReviews"] });
       toast({ title: "Review Updated", description: "The review has been successfully updated." });
       resetForm();
       setIsFormOpen(false);
@@ -79,7 +82,7 @@ export default function AgencyReviewsPage() {
   const { mutate: deleteReviewMutation } = useMutation({
     mutationFn: deleteReview,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reviews"] });
+      queryClient.invalidateQueries({ queryKey: ["agencyLoggedReviews"] });
       toast({ title: "Review Deleted", description: "The review has been successfully deleted." });
     },
     onError: (error) => {
@@ -98,6 +101,7 @@ export default function AgencyReviewsPage() {
     setFormReviewTitle("");
     setFormComment("");
     setFormAvatarUrl("");
+    setFormBookingId("");
   }
   
   const handleOpenForm = (review?: Review) => {
@@ -108,6 +112,7 @@ export default function AgencyReviewsPage() {
       setFormReviewTitle(review.title || "");
       setFormComment(review.comment);
       setFormAvatarUrl(review.avatarUrl || "");
+      setFormBookingId(review.bookingId || "");
     } else {
       resetForm();
     }
@@ -121,18 +126,25 @@ export default function AgencyReviewsPage() {
       toast({ title: "Rating Required", description: "Please select a star rating for the customer.", variant: "destructive" });
       return;
     }
-    const reviewPayload = {
+    const reviewPayload: Omit<Review, "id" | "createdAt"> & { createdAt?: Date } = {
       customerName: formCustomerName || "Anonymous Customer",
       rating: formRating,
-      title: formReviewTitle,
+      title: formReviewTitle || undefined,
       comment: formComment,
       avatarUrl: formAvatarUrl || `https://placehold.co/40x40.png?text=${formCustomerName ? formCustomerName.substring(0,1).toUpperCase() : 'C'}U`,
-      reviewType: "customer" as Review["reviewType"], 
-      createdAt: new Date(), // Firestore service will convert this to Timestamp
+      reviewType: "customer_feedback", 
+      createdAt: new Date(), 
+      bookingId: formBookingId || undefined,
+      reviewerId: currentUser?.uid, // Agency staff member who logged this
     };
     
     if (editingReview) {
-      updateReviewMutation({id: editingReview.id, data: reviewPayload});
+      // When updating, we don't want to change createdAt unless specifically intended
+      // The service should handle Timestamp conversion only for new Date objects
+      const { createdAt, ...payloadWithoutDate } = reviewPayload;
+      const updatePayload = editingReview.createdAt === (createdAt as Date)?.toISOString() ? payloadWithoutDate : reviewPayload;
+
+      updateReviewMutation({id: editingReview.id, data: updatePayload as Partial<Omit<Review, "id">>});
     } else {
       addReviewMutation(reviewPayload);
     }
@@ -146,9 +158,10 @@ export default function AgencyReviewsPage() {
   
   const getReviewTypeLabel = (type: Review["reviewType"]) => {
     switch (type) {
-      case "customer": return "Customer Review";
+      case "customer_feedback": return "Customer Feedback";
       case "driver_report": return "Driver Report";
       case "agency_assessment": return "Agency Assessment";
+      case "user_submitted": return "User Submitted";
       default: return "Review";
     }
   };
@@ -170,23 +183,23 @@ export default function AgencyReviewsPage() {
 
   return (
     <>
-      <PageHeader title="Customer Reviews Management" description="Log and view customer feedback.">
+      <PageHeader title="Customer Feedback Management" description="Log and view customer feedback for your agency.">
         <Button onClick={() => handleOpenForm()} disabled={isMutating}>
-          <PlusCircle className="mr-2 h-4 w-4" /> {isFormOpen && !editingReview ? "Cancel Logging" : (editingReview ? "Cancel Editing" : "Log Customer Review")}
+          <PlusCircle className="mr-2 h-4 w-4" /> {isFormOpen && !editingReview ? "Cancel Logging" : (editingReview ? "Cancel Editing" : "Log Customer Feedback")}
         </Button>
       </PageHeader>
 
       {(isFormOpen || editingReview) && (
         <Card className="mb-8 shadow-lg">
           <CardHeader>
-            <CardTitle>{editingReview ? "Edit Customer Review" : "Log Customer Review"}</CardTitle>
+            <CardTitle>{editingReview ? "Edit Customer Feedback" : "Log Customer Feedback"}</CardTitle>
             <CardDescription>{editingReview ? "Update the details of this customer feedback." : "Enter the feedback received from a customer about their experience."}</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="formCustomerName">Customer Name</Label>
+                  <Label htmlFor="formCustomerName">Customer Name *</Label>
                   <Input id="formCustomerName" value={formCustomerName} onChange={(e) => setFormCustomerName(e.target.value)} placeholder="Enter customer's name" required/>
                 </div>
                 <div>
@@ -209,6 +222,10 @@ export default function AgencyReviewsPage() {
                 <Label htmlFor="formReviewTitle">Review Title (Optional)</Label>
                 <Input id="formReviewTitle" value={formReviewTitle} onChange={(e) => setFormReviewTitle(e.target.value)} placeholder="e.g., Excellent Service!" />
               </div>
+               <div>
+                <Label htmlFor="formBookingId">Booking ID (Optional)</Label>
+                <Input id="formBookingId" value={formBookingId} onChange={(e) => setFormBookingId(e.target.value)} placeholder="e.g., BK12345" />
+              </div>
               <div>
                 <Label htmlFor="formComment">Customer Comments *</Label>
                 <Textarea
@@ -228,7 +245,7 @@ export default function AgencyReviewsPage() {
             <CardFooter className="gap-2">
               <Button type="submit" disabled={isMutating}>
                 {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {editingReview ? "Save Changes" : "Save Customer Review"}
+                {editingReview ? "Save Changes" : "Save Customer Feedback"}
               </Button>
               <Button type="button" variant="outline" onClick={() => { setIsFormOpen(false); resetForm(); }}>Cancel</Button>
             </CardFooter>
@@ -239,7 +256,7 @@ export default function AgencyReviewsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center"><MessageSquareText className="mr-2 h-5 w-5 text-primary"/>Feedback Log</CardTitle>
-          <CardDescription>All logged feedback for your agency.</CardDescription>
+          <CardDescription>All customer feedback logged by your agency.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoadingReviews ? (
@@ -260,8 +277,8 @@ export default function AgencyReviewsPage() {
           ) : reviews.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
               <MessageSquareText className="mx-auto h-12 w-12 mb-4" />
-              <p className="text-lg font-medium">No reviews logged yet.</p>
-              <p className="text-sm">Use the 'Log Customer Review' button to add feedback.</p>
+              <p className="text-lg font-medium">No feedback logged yet.</p>
+              <p className="text-sm">Use the 'Log Customer Feedback' button to add entries.</p>
             </div>
           ) : (
             <ScrollArea className="h-[calc(100vh-25rem)] pr-3">
@@ -293,11 +310,14 @@ export default function AgencyReviewsPage() {
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">{review.comment}</p>
                         <div className="mt-2 flex items-center justify-between">
-                          <p className="text-xs text-muted-foreground">
-                            {review.createdAt ? formatDistanceToNow(new Date(review.createdAt), { addSuffix: true }) : 'N/A'}
-                          </p>
+                            <div>
+                                <p className="text-xs text-muted-foreground">
+                                    Logged: {review.createdAt ? formatDistanceToNow(new Date(review.createdAt), { addSuffix: true }) : 'N/A'}
+                                </p>
+                                {review.bookingId && <p className="text-xs text-muted-foreground">Booking ID: {review.bookingId}</p>}
+                            </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant={review.reviewType === 'customer' ? 'secondary' : 'outline'}>
+                            <Badge variant={review.reviewType === 'customer_feedback' ? 'secondary' : 'outline'}>
                               {getReviewTypeLabel(review.reviewType)}
                             </Badge>
                              <DropdownMenu>
@@ -329,5 +349,3 @@ export default function AgencyReviewsPage() {
     </>
   );
 }
-
-    

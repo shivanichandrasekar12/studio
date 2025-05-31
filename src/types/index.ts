@@ -72,15 +72,15 @@ export type NotificationItem = {
 
 export type Review = {
   id: string;
-  bookingId?: string;
-  customerName: string; // Could be customerId in future
-  agencyId?: string;
-  reviewerRole?: UserRole; // Who wrote this review
-  subjectRole?: UserRole; // Who/what is being reviewed (e.g. customer reviews agency, agency reviews customer)
+  bookingId?: string; // Optional: Link to a specific booking
+  reviewerId?: string; // Optional: UID of the agency staff who logged the review, or customer UID if customer submitted
+  customerName: string; // Name of the customer who the review is about
+  agencyId?: string; // Optional: UID of the agency (if a multi-tenant platform or for filtering)
   rating: number; // e.g., 1-5
   title?: string;
   comment: string;
   createdAt: Date;
-  avatarUrl?: string;
-  reviewType: 'customer' | 'driver_report' | 'agency_assessment'; // more specific agency review types
+  avatarUrl?: string; // Avatar of the customer (if agency logs it) or reviewer
+  reviewType: 'customer_feedback' | 'driver_report' | 'agency_assessment' | 'user_submitted'; // 'customer_feedback' by agency, 'user_submitted' by customer
 };
+
