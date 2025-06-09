@@ -1,8 +1,6 @@
-
-import type {NextConfig} from 'next';
-
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: 'export', // Enables static export
+  assetPrefix: process.env.NODE_ENV === 'production' ? '/studio/' : '',
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -32,5 +30,3 @@ const nextConfig: NextConfig = {
     ],
   },
 };
-
-export default nextConfig;
